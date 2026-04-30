@@ -1,2 +1,2 @@
-# afl-fantasy-assitant
+# afl-fantasy-assistant
 AFL Fantasy Draft Tool
