@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server'
-import { fetchMySquadWithStats, SQUAD_ID_TO_TEAM } from '@/lib/aflFantasy'
+import { fetchMySquadWithStats } from '@/lib/aflFantasy'
 import { supabase } from '@/lib/supabase'
 
 export async function POST() {
@@ -13,24 +13,22 @@ export async function POST() {
       )
     }
 
-    const { players } = result
-
-    // Clear existing players and re-insert fresh from API
-    await supabase.from('players').delete().neq('id', '00000000-0000-0000-0000-000000000000')
+    await supabase
+      .from('players')
+      .delete()
+      .neq('id', '00000000-0000-0000-0000-000000000000')
 
     let synced = 0
     let errors = 0
 
-    for (const player of players) {
+    for (const player of result.players) {
       if (!player) continue
-
-      const teamName = SQUAD_ID_TO_TEAM[player.squadId] || `Team ${player.squadId}`
 
       const { error } = await supabase
         .from('players')
         .insert({
           name: player.name,
-          team: teamName,
+          team: player.team,
           position: player.position,
           position2: player.position2,
           avg_score: player.avgScore,
@@ -38,8 +36,8 @@ export async function POST() {
           total_points: player.totalPoints,
           injured: player.injured,
           injury_note: player.injuryNote,
-          scores: [],
-          score_rounds: [],
+          scores: player.scores,
+          score_rounds: player.scoreRounds,
           lineup_position: player.lineupPosition,
           is_captain: player.isCaptain,
           is_vice_captain: player.isViceCaptain,
@@ -48,7 +46,7 @@ export async function POST() {
           high_score: player.highScore,
           low_score: player.lowScore,
           games_played: player.gamesPlayed,
-          afl_fantasy_id: player.id,
+          afl_fantasy_id: player.aflFantasyId,
         })
 
       if (error) {

@@ -1,4 +1,38 @@
-export interface Player {
+export type ProjectionConfidence = 'Low' | 'Medium' | 'High'
+
+export type ProjectionFactorKind =
+  | 'baseline'
+  | 'form'
+  | 'opponent'
+  | 'matchup'
+  | 'venue'
+  | 'home_away'
+  | 'player_venue'
+  | 'opponent_venue'
+  | 'injury'
+  | 'volatility'
+  | 'data'
+
+export interface ProjectionFactor {
+  kind: ProjectionFactorKind
+  label: string
+  value: string | number
+  impact: number
+  description: string
+  available: boolean
+}
+
+export interface PlayerProjectionFields {
+  projectedScore?: number
+  projectionLow?: number
+  projectionHigh?: number
+  projectionConfidence?: ProjectionConfidence
+  projectionReason?: string
+  projectionFactors?: ProjectionFactor[]
+  projectionUpdatedAt?: string
+}
+
+export interface Player extends PlayerProjectionFields {
   id: string
   name: string
   team: string
@@ -20,6 +54,10 @@ export interface Player {
   lowScore?: number
   gamesPlayed?: number
   aflFantasyId?: number
+  squadId?: number
+  status?: string
+  ownedByTeamId?: number
+  ownedByTeamName?: string
 }
 
 export interface PlayerWithStats extends Player {
@@ -48,10 +86,27 @@ export interface SquiggleGame {
   venue: string
 }
 
+export interface FixtureContext {
+  opponent: string
+  difficulty: string
+  confidence: number
+  venue?: string
+  isHome?: boolean
+  date?: string
+}
+
 export interface AnalysisResult {
   type: 'strengths' | 'projections' | 'freeagents' | 'trades' | 'captain'
   content: string
   generatedAt: string
+}
+
+export interface FreeAgentComparison {
+  player: Player
+  projectedScore: number
+  replacementPlayer?: Player
+  netGain?: number
+  reason: string
 }
 
 export const LINEUP_STRUCTURE = [

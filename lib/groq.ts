@@ -14,7 +14,7 @@ export async function analyzeWithGroq(
       { role: 'user', content: userPrompt },
     ],
     model: 'llama-3.3-70b-versatile',
-    temperature: 0.7,
+    temperature: 0.2,
     max_tokens: 2048,
   })
 

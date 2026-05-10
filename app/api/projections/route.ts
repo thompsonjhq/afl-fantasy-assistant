@@ -1,0 +1,180 @@
+import { NextRequest, NextResponse } from 'next/server'
+import { getFixtureContext, getSquiggleFixtures } from '@/lib/afl'
+import { fetchFreeAgentsWithStats } from '@/lib/aflFantasy'
+import { CachedPlayerHistoricalStats, getHistoricalStatsForPlayers } from '@/lib/aflTables'
+import { getMatchupsForPlayers } from '@/lib/matchups'
+import { getVenueProfilesForPlayers } from '@/lib/venues'
+import { calculateTeamProjections, findWeakestComparablePlayer, HistoricalProjectionInput } from '@/lib/projections'
+import { Player } from '@/types'
+
+const CURRENT_YEAR = new Date().getFullYear()
+
+interface ProjectionsRequestBody {
+  players?: Player[]
+  round?: number
+  includeFreeAgents?: boolean
+  freeAgentLimit?: number
+}
+
+interface VenueProfilesForRoute {
+  playerVenue: {
+    games: number
+    avgScoreAtVenue: number
+    pointsVsExpected: number
+  } | null
+  opponentVenuePosition: {
+    games: number
+    avgScoreConceded: number
+    pointsConcededVsExpected: number
+  } | null
+}
+
+function mergeVenueIntoHistorical(
+  historicalByPlayerId: Record<string, CachedPlayerHistoricalStats | undefined>,
+  venueByPlayerId: Record<string, VenueProfilesForRoute | undefined>
+): Record<string, HistoricalProjectionInput> {
+  const merged: Record<string, HistoricalProjectionInput> = {}
+
+  const playerIds = new Set([
+    ...Object.keys(historicalByPlayerId),
+    ...Object.keys(venueByPlayerId),
+  ])
+
+  for (const playerId of playerIds) {
+    const historical = historicalByPlayerId[playerId]
+    const venueProfiles = venueByPlayerId[playerId]
+
+    merged[playerId] = {
+      opponentAverage: historical?.opponentAverage,
+      fantasyAverageFromAflTables: historical?.fantasyAverageFromAflTables,
+      gamesInSample: historical?.gamesInSample,
+      dataQuality: historical?.dataQuality,
+
+      playerVenueGames: venueProfiles?.playerVenue?.games,
+      playerVenueAverage: venueProfiles?.playerVenue?.avgScoreAtVenue,
+      playerVenuePointsVsExpected: venueProfiles?.playerVenue?.pointsVsExpected,
+
+      opponentVenueGames: venueProfiles?.opponentVenuePosition?.games,
+      opponentVenueAverage: venueProfiles?.opponentVenuePosition?.avgScoreConceded,
+      opponentVenuePointsVsExpected: venueProfiles?.opponentVenuePosition?.pointsConcededVsExpected,
+    }
+  }
+
+  return merged
+}
+
+async function projectPlayers(players: Player[], round: number) {
+  const asOfRound = round
+  const fixtures = await getSquiggleFixtures(round, CURRENT_YEAR)
+
+  const fixturesByPlayerId = Object.fromEntries(
+    players.map((player) => [player.id, getFixtureContext(player.team, fixtures)])
+  )
+
+  const historicalByPlayerId = await getHistoricalStatsForPlayers(
+    players,
+    CURRENT_YEAR,
+    fixturesByPlayerId
+  )
+
+  const venueByPlayerId = await getVenueProfilesForPlayers(
+    CURRENT_YEAR,
+    asOfRound,
+    players,
+    fixturesByPlayerId
+  )
+
+  const historicalWithVenue = mergeVenueIntoHistorical(
+    historicalByPlayerId,
+    venueByPlayerId
+  )
+
+  const matchupByPlayerId = await getMatchupsForPlayers(
+    CURRENT_YEAR,
+    asOfRound,
+    players,
+    fixturesByPlayerId
+  )
+
+  const projectedPlayers = calculateTeamProjections(
+    players,
+    fixturesByPlayerId,
+    historicalWithVenue,
+    matchupByPlayerId
+  )
+
+  return {
+    asOfRound,
+    fixturesByPlayerId,
+    projectedPlayers,
+  }
+}
+
+export async function POST(request: NextRequest) {
+  try {
+    const body = (await request.json()) as ProjectionsRequestBody
+    const players = Array.isArray(body.players) ? body.players : []
+    const round = body.round || 1
+
+    const squadProjection = await projectPlayers(players, round)
+    const projectedSquad = squadProjection.projectedPlayers
+
+    let projectedFreeAgents: Player[] = []
+    let comparisons: Array<{
+      player: Player
+      replacementPlayer?: Player
+      netGain?: number
+      reason: string
+    }> = []
+
+    if (body.includeFreeAgents) {
+      const freeAgents = await fetchFreeAgentsWithStats(body.freeAgentLimit || 120)
+      const freeAgentProjection = await projectPlayers(freeAgents, round)
+
+      projectedFreeAgents = freeAgentProjection.projectedPlayers
+
+      comparisons = projectedFreeAgents
+        .slice(0, 60)
+        .map((freeAgent) => {
+          const replacementPlayer = findWeakestComparablePlayer(freeAgent, projectedSquad)
+          const replacementScore = replacementPlayer
+            ? replacementPlayer.projectedScore || replacementPlayer.avgScore || 0
+            : 0
+
+          const netGain = replacementPlayer
+            ? Math.round((freeAgent.projectedScore || 0) - replacementScore)
+            : undefined
+
+          return {
+            player: freeAgent,
+            replacementPlayer,
+            netGain,
+            reason: replacementPlayer
+              ? `${freeAgent.name} projects ${netGain && netGain >= 0 ? '+' : ''}${netGain ?? 0} versus ${replacementPlayer.name}.`
+              : `${freeAgent.name} is projected strongly, but no comparable squad player was found.`,
+          }
+        })
+        .sort((a, b) => (b.netGain ?? -999) - (a.netGain ?? -999))
+    }
+
+    return NextResponse.json({
+      success: true,
+      round,
+      asOfRound: squadProjection.asOfRound,
+      projections: projectedSquad,
+      freeAgents: projectedFreeAgents,
+      comparisons,
+      generatedAt: new Date().toISOString(),
+    })
+  } catch (error) {
+    console.error('Projection API error:', error)
+
+    return NextResponse.json(
+      {
+        success: false,
+        error: error instanceof Error ? error.message : 'Failed to calculate projections',
+      },
+      { status: 500 }
+    )
+  }
+}
