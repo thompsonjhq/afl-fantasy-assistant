@@ -109,6 +109,38 @@ export interface FreeAgentComparison {
   reason: string
 }
 
+export interface PlayerGameLogRow {
+  playerName: string
+  team?: string
+  season: number
+  round: number
+  date?: string
+  opponent?: string
+  venue?: string
+  isHome?: boolean
+  win?: boolean
+  fantasyPoints: number
+  disposals?: number
+  goals?: number
+}
+
+export interface InjuryEntry {
+  playerName: string
+  club: string
+  injuryType: string
+  returning: string
+  scrapedAt: string
+}
+
+export interface TeamSelectionChange {
+  club: string
+  season: number
+  round: number
+  ins: string[]
+  outs: string[]
+  scrapedAt: string
+}
+
 export const LINEUP_STRUCTURE = [
   { label: 'DEF 1', position: 'DEF', flex: false },
   { label: 'DEF 2', position: 'DEF', flex: false },

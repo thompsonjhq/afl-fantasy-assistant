@@ -1,4 +1,6 @@
 import { FixtureContext, Player, ProjectionConfidence, ProjectionFactor } from '@/types'
+import type { FittedModel } from '@/lib/model'
+import { MIN_TRAINING_ROWS } from '@/lib/model'
 
 export interface FixtureProjectionInput extends FixtureContext {}
 
@@ -155,6 +157,20 @@ function getMatchupAdjustment(matchup?: MatchupProjectionInput | null): number {
   return clamp(matchup.pointsConcededVsExpected, -12, 12)
 }
 
+/** Maps a real scraped injury/return-timeframe note (from footywire's injury list) to a severity-aware penalty multiplier, replacing the old flat 0.25 constant used when all we had was a boolean flag. */
+function getInjuryPenaltyMultiplier(injuryNote?: string): number {
+  if (!injuryNote) return 0.25
+
+  const note = injuryNote.toLowerCase()
+
+  if (note.includes('season')) return 0
+  if (note.includes('test')) return 0.85
+  if (/\d+\s*-?\s*\d*\s*weeks?/.test(note)) return 0.05
+  if (/round\s+\d+/.test(note)) return 0.05
+
+  return 0.25
+}
+
 function getConfidence(player: Player, factors: ProjectionFactor[], volatility: number): ProjectionConfidence {
   const gamesPlayed = safeNumber(player.gamesPlayed)
   const unavailableFactors = factors.filter((factor) => !factor.available).length
@@ -200,11 +216,40 @@ function isOpponentAvailable(fixture?: FixtureProjectionInput, historical?: Hist
   )
 }
 
+/** Applies fitted regression coefficients (see lib/model.ts) to the same inputs the heuristic chain uses, so the fitted model can replace the hand-tuned constants once enough real game-log data exists to trust it. */
+function getFittedModelScore(
+  fittedModel: FittedModel | undefined,
+  baseAverage: number,
+  recentAverage: number,
+  historical: HistoricalProjectionInput | undefined,
+  matchup: MatchupProjectionInput | null | undefined,
+  fixture: FixtureProjectionInput | undefined
+): number | null {
+  if (!fittedModel || fittedModel.sampleSize < MIN_TRAINING_ROWS || baseAverage <= 0) return null
+
+  const { coefficients } = fittedModel
+  const seasonAvg = baseAverage
+  const recentForm = recentAverage > 0 ? recentAverage : baseAverage
+  const opponentDvp = historical?.opponentAverage ?? matchup?.avgScoreConceded ?? baseAverage
+  const venueEffect = historical?.playerVenuePointsVsExpected ?? 0
+  const homeAway = fixture?.isHome === true ? 1 : fixture?.isHome === false ? -1 : 0
+
+  return (
+    coefficients.intercept +
+    coefficients.seasonAvg * seasonAvg +
+    coefficients.recentForm * recentForm +
+    coefficients.opponentDvp * opponentDvp +
+    coefficients.venueEffect * venueEffect +
+    coefficients.homeAway * homeAway
+  )
+}
+
 export function calculatePlayerProjection(
   player: Player,
   fixture?: FixtureProjectionInput,
   historical?: HistoricalProjectionInput,
-  matchup?: MatchupProjectionInput | null
+  matchup?: MatchupProjectionInput | null,
+  fittedModel?: FittedModel
 ): PlayerProjection {
   const baseAverage = getBaseAverage(player, historical)
   const recentAverage = getRecentAverage(player)
@@ -215,7 +260,7 @@ export function calculatePlayerProjection(
   const homeAwayAdjustment = getHomeAwayAdjustment(fixture)
   const playerVenueAdjustment = getPlayerVenueAdjustment(historical)
   const opponentVenueAdjustment = getOpponentVenueAdjustment(historical)
-  const injuryMultiplier = player.injured ? 0.25 : 1
+  const injuryMultiplier = player.injured ? getInjuryPenaltyMultiplier(player.injuryNote) : 1
 
   const afterForm = baseAverage * formMultiplier
   const afterOpponent = afterForm * opponentMultiplier
@@ -223,7 +268,11 @@ export function calculatePlayerProjection(
   const afterHomeAway = afterMatchup + homeAwayAdjustment
   const afterPlayerVenue = afterHomeAway + playerVenueAdjustment
   const afterOpponentVenue = afterPlayerVenue + opponentVenueAdjustment
-  const beforeInjury = afterOpponentVenue
+
+  const modelScore = getFittedModelScore(fittedModel, baseAverage, recentAverage, historical, matchup, fixture)
+  const usedFittedModel = modelScore !== null
+
+  const beforeInjury = usedFittedModel ? modelScore! : afterOpponentVenue
   const afterInjury = beforeInjury * injuryMultiplier
 
   const projectedScore = Math.max(0, Math.round(afterInjury))
@@ -332,7 +381,7 @@ label: 'Opp Venue',
       value: player.injured ? player.injuryNote || 'Flagged' : 'Clear',
       impact: injuryImpact,
       description: player.injured
-        ? 'Injury flag applies a severe availability penalty.'
+        ? `Penalty scaled to the real return timeframe (${player.injuryNote || 'unspecified'}) rather than a flat cut.`
         : 'No injury penalty applied.',
       available: true,
     },
@@ -345,6 +394,16 @@ label: 'Opp Venue',
         ? 'Projection range uses actual score standard deviation.'
         : 'Projection range uses high/low fallback due to limited score history.',
       available: scores.length >= 3 || (safeNumber(player.highScore) > 0 && safeNumber(player.lowScore) > 0),
+    },
+    {
+      kind: 'data',
+      label: 'Model',
+      value: usedFittedModel ? `Fitted (n=${fittedModel!.sampleSize}, R²=${fittedModel!.rSquared})` : 'Heuristic',
+      impact: 0,
+      description: usedFittedModel
+        ? `Base score comes from a regression fitted on real footywire game-log history (${fittedModel!.sampleSize} rows, R² ${fittedModel!.rSquared}), not fixed constants.`
+        : 'No fitted model available yet (or too little game-log data) - using the hand-tuned heuristic weights.',
+      available: usedFittedModel,
     },
   ]
 
@@ -371,7 +430,8 @@ export function calculateTeamProjections<T extends Player>(
   players: T[],
   fixturesByPlayerId: Record<string, FixtureProjectionInput | undefined> = {},
   historicalByPlayerId: Record<string, HistoricalProjectionInput | undefined> = {},
-  matchupByPlayerId: Record<string, MatchupProjectionInput | null | undefined> = {}
+  matchupByPlayerId: Record<string, MatchupProjectionInput | null | undefined> = {},
+  fittedModel?: FittedModel
 ) {
   return players
     .map((player) => ({
@@ -380,7 +440,8 @@ export function calculateTeamProjections<T extends Player>(
         player,
         fixturesByPlayerId[player.id],
         historicalByPlayerId[player.id],
-        matchupByPlayerId[player.id]
+        matchupByPlayerId[player.id],
+        fittedModel
       ),
       fixture: fixturesByPlayerId[player.id],
       matchup: matchupByPlayerId[player.id],

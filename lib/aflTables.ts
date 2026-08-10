@@ -1,4 +1,6 @@
 import { supabase } from '@/lib/supabase'
+import { getPlayerGameLog } from '@/lib/gameLogStore'
+import type { PlayerGameLogRow } from '@/types'
 
 export interface AflTablesSeasonRow {
   playerName: string
@@ -203,10 +205,79 @@ function profileFromSeasonRow(row: AflTablesSeasonRow | undefined, playerName: s
   }
 }
 
+function mean(values: number[]): number {
+  return values.length > 0 ? values.reduce((sum, value) => sum + value, 0) / values.length : 0
+}
+
+function round1(value: number): number {
+  return Math.round(value * 10) / 10
+}
+
+/** Builds a real per-game profile from footywire game-log rows: real games, real venue/opponent splits (across all seasons on file), not an approximation. */
+function buildRealStatProfile(
+  playerName: string,
+  allRows: PlayerGameLogRow[],
+  seasonRows: PlayerGameLogRow[]
+): PlayerStatProfile {
+  const sorted = [...seasonRows].sort((a, b) => a.round - b.round)
+
+  const games: PlayerGameStat[] = sorted.map((row) => ({
+    round: row.round,
+    opponent: row.opponent,
+    venue: row.venue,
+    fantasyPoints: row.fantasyPoints,
+  }))
+
+  const groupBy = (keyFn: (row: PlayerGameLogRow) => string | undefined) => {
+    const groups = new Map<string, number[]>()
+
+    for (const row of allRows) {
+      const key = keyFn(row)
+      if (!key) continue
+      groups.set(key, [...(groups.get(key) || []), row.fantasyPoints])
+    }
+
+    return groups
+  }
+
+  const venueAverages = Array.from(groupBy((row) => row.venue).entries()).map(([venue, points]) => ({
+    venue,
+    fantasyPoints: round1(mean(points)),
+    games: points.length,
+  }))
+
+  const opponentAverages = Array.from(groupBy((row) => row.opponent).entries()).map(([opponent, points]) => ({
+    opponent,
+    fantasyPoints: round1(mean(points)),
+    games: points.length,
+  }))
+
+  return {
+    playerName,
+    games,
+    seasonAvg: round1(mean(sorted.map((row) => row.fantasyPoints))),
+    last3Avg: round1(mean(sorted.slice(-3).map((row) => row.fantasyPoints))),
+    last5Avg: round1(mean(sorted.slice(-5).map((row) => row.fantasyPoints))),
+    overallAvg: { fantasyPoints: round1(mean(allRows.map((row) => row.fantasyPoints))) },
+    venueAverages,
+    opponentAverages,
+    scrapedAt: new Date().toISOString(),
+  }
+}
+
 export async function getPlayerStatProfile(
   playerName: string,
   year = new Date().getFullYear()
 ): Promise<PlayerStatProfile> {
+  const gameLogRows = await getPlayerGameLog(playerName)
+  const seasonRows = gameLogRows.filter((row) => row.season === year)
+
+  if (seasonRows.length > 0) {
+    return buildRealStatProfile(playerName, gameLogRows, seasonRows)
+  }
+
+  // Cold start: no footywire game-log rows backfilled for this player yet.
+  // Fall back to the AFL Tables season-average approximation until /api/backfill-game-logs has run.
   const statType = `stat_profile_${year}`
   const cached = await getCached<PlayerStatProfile>(playerName, statType)
 
@@ -240,12 +311,8 @@ export async function getPlayerHistoricalStats(
   opponent?: string,
   venue?: string
 ): Promise<CachedPlayerHistoricalStats> {
-  const statType = `projection_context_${year}_${normaliseName(opponent || 'unknown')}_${normaliseName(venue || 'unknown')}`
-  const cached = await getCached<CachedPlayerHistoricalStats>(playerName, statType)
-
-  if (cached) return cached
-
   const profile = await getPlayerStatProfile(playerName, year)
+  const hasRealData = profile.games.some((game) => Boolean(game.opponent || game.venue))
 
   const venueAverage = venue
     ? profile.venueAverages.find((entry) => entry.venue.toLowerCase() === venue.toLowerCase())?.fantasyPoints
@@ -255,17 +322,14 @@ export async function getPlayerHistoricalStats(
     ? profile.opponentAverages.find((entry) => entry.opponent.toLowerCase() === opponent.toLowerCase())?.fantasyPoints
     : undefined
 
-  const data: CachedPlayerHistoricalStats = {
+  return {
     fantasyAverageFromAflTables: profile.overallAvg.fantasyPoints || undefined,
     venueAverage,
     opponentAverage,
     gamesInSample: profile.games.length,
-    dataQuality: profile.overallAvg.fantasyPoints ? 'partial' : 'none',
-    source: `AFL Tables ${year} season stats cache`,
+    dataQuality: hasRealData ? 'good' : profile.overallAvg.fantasyPoints ? 'partial' : 'none',
+    source: hasRealData ? 'Footywire real per-game history' : `AFL Tables ${year} season stats cache`,
   }
-
-  await setCached(playerName, statType, data)
-  return data
 }
 
 export async function getHistoricalStatsForPlayers(

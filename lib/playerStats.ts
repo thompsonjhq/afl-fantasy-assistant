@@ -54,7 +54,17 @@ export function enrichPlayerStats(player: Player): PlayerWithStats {
   }
 }
 
-export function buildPlayerContext(player: PlayerWithStats, opponent: string, difficulty: string): string {
+export interface SelectionContext {
+  ins: string[]
+  outs: string[]
+}
+
+export function buildPlayerContext(
+  player: PlayerWithStats,
+  opponent: string,
+  difficulty: string,
+  selectionContext?: SelectionContext
+): string {
   const scores = player.scores || []
   const scoreHistory = scores.length > 0
     ? scores.map((s, i) => `R${player.scoreRounds?.[i] ?? i + 1}: ${s}`).join(', ')
@@ -63,6 +73,15 @@ export function buildPlayerContext(player: PlayerWithStats, opponent: string, di
   const positions = player.position2
     ? `${player.position}/${player.position2}`
     : player.position
+
+  const injuryStatus = player.injured
+    ? `INJURED - ${player.injuryNote || 'Flagged, no further detail available'} (source: footywire injury list)`
+    : 'Fit'
+
+  const hasSelectionNews = selectionContext && (selectionContext.ins.length > 0 || selectionContext.outs.length > 0)
+  const selectionLine = hasSelectionNews
+    ? `\nThis week's real team selection changes for ${player.team} - Ins: ${selectionContext!.ins.join(', ') || 'none'} | Outs: ${selectionContext!.outs.join(', ') || 'none'} (source: footywire team selections)`
+    : ''
 
   return `
 PLAYER: ${player.name}
@@ -73,6 +92,6 @@ Form Rating: ${player.formRating} | Trend: ${player.trend} | Consistency: ${play
 Score History: ${scoreHistory}
 Highest Score: ${scores.length > 0 ? Math.max(...scores) : 'N/A'} | Lowest Score: ${scores.length > 0 ? Math.min(...scores) : 'N/A'}
 Upcoming Opponent: ${opponent} (Difficulty: ${difficulty})
-Injury Status: ${player.injured ? `INJURED - ${player.injuryNote}` : 'Fit'}
+Injury Status: ${injuryStatus}${selectionLine}
 `.trim()
 }

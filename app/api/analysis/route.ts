@@ -2,10 +2,35 @@ import { NextRequest, NextResponse } from 'next/server'
 import { getFixtureContext, getSquiggleFixtures } from '@/lib/afl'
 import { fetchFreeAgentsWithStats } from '@/lib/aflFantasy'
 import { getHistoricalStatsForPlayers } from '@/lib/aflTables'
+import { normaliseTeamName } from '@/lib/matchups'
 import { analyzeWithGroq } from '@/lib/groq'
-import { enrichPlayerStats, buildPlayerContext } from '@/lib/playerStats'
+import { enrichPlayerStats, buildPlayerContext, SelectionContext } from '@/lib/playerStats'
 import { calculateTeamProjections, findWeakestComparablePlayer } from '@/lib/projections'
+import { getLatestFittedModel } from '@/lib/model'
+import { supabase } from '@/lib/supabase'
 import { Player, PlayerWithStats } from '@/types'
+
+async function getLatestSelectionChangesByClub(clubs: string[]): Promise<Record<string, SelectionContext>> {
+  const normalisedClubs = [...new Set(clubs.map(normaliseTeamName))]
+  if (normalisedClubs.length === 0) return {}
+
+  const { data, error } = await supabase
+    .from('team_selection_changes')
+    .select('*')
+    .in('club', normalisedClubs)
+    .order('round', { ascending: false })
+
+  if (error || !data) return {}
+
+  const byClub: Record<string, SelectionContext> = {}
+
+  for (const row of data) {
+    if (byClub[row.club]) continue // already have the latest round for this club
+    byClub[row.club] = { ins: row.ins || [], outs: row.outs || [] }
+  }
+
+  return byClub
+}
 
 const CURRENT_YEAR = new Date().getFullYear()
 
@@ -51,13 +76,16 @@ export async function POST(request: NextRequest) {
       enrichedPlayers.map((player) => [player.id, getFixtureContext(player.team, fixtures)])
     )
     const historicalByPlayerId = await getHistoricalStatsForPlayers(enrichedPlayers, CURRENT_YEAR, fixturesByPlayerId)
-    const projectedPlayers = calculateTeamProjections(enrichedPlayers, fixturesByPlayerId, historicalByPlayerId)
+    const fittedModel = (await getLatestFittedModel()) ?? undefined
+    const projectedPlayers = calculateTeamProjections(enrichedPlayers, fixturesByPlayerId, historicalByPlayerId, {}, fittedModel)
+    const selectionChangesByClub = await getLatestSelectionChangesByClub(projectedPlayers.map((player) => player.team))
 
     const playerContexts = projectedPlayers.map((player) => {
       const baseContext = buildPlayerContext(
         player,
         player.fixture?.opponent || 'Unknown',
-        player.fixture?.difficulty || 'Unknown'
+        player.fixture?.difficulty || 'Unknown',
+        selectionChangesByClub[normaliseTeamName(player.team)]
       )
 
       return `${baseContext}
@@ -83,7 +111,7 @@ ${projectionFactorText(player)}`
         freeAgents.map((player) => [player.id, getFixtureContext(player.team, fixtures)])
       )
       const freeAgentHistorical = await getHistoricalStatsForPlayers(freeAgents, CURRENT_YEAR, freeAgentFixtures)
-      const projectedFreeAgents = calculateTeamProjections(freeAgents, freeAgentFixtures, freeAgentHistorical)
+      const projectedFreeAgents = calculateTeamProjections(freeAgents, freeAgentFixtures, freeAgentHistorical, {}, fittedModel)
 
       const comparisons = projectedFreeAgents.slice(0, 35).map((freeAgent) => {
         const replacementPlayer = findWeakestComparablePlayer(freeAgent, projectedPlayers)

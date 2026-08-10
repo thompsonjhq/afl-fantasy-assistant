@@ -303,7 +303,9 @@ const added: Player = {
                     <td className="py-2 pr-2 text-gray-700">{player.totalPoints}</td>
                     <td className="py-2 pr-2">
                       {player.injured
-                        ? <span className="text-red-500 text-xs font-medium">⚠ Injured</span>
+                        ? <span className="text-red-500 text-xs font-medium" title={player.injuryNote || undefined}>
+                            ⚠ {player.injuryNote || 'Injured'}
+                          </span>
                         : <span className="text-green-600 text-xs">✓ Fit</span>
                       }
                     </td>

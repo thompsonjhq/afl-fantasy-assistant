@@ -5,6 +5,7 @@ import { CachedPlayerHistoricalStats, getHistoricalStatsForPlayers } from '@/lib
 import { getMatchupsForPlayers } from '@/lib/matchups'
 import { getVenueProfilesForPlayers } from '@/lib/venues'
 import { calculateTeamProjections, findWeakestComparablePlayer, HistoricalProjectionInput } from '@/lib/projections'
+import { getLatestFittedModel } from '@/lib/model'
 import { Player } from '@/types'
 
 const CURRENT_YEAR = new Date().getFullYear()
@@ -66,6 +67,7 @@ function mergeVenueIntoHistorical(
 async function projectPlayers(players: Player[], round: number) {
   const asOfRound = round
   const fixtures = await getSquiggleFixtures(round, CURRENT_YEAR)
+  const fittedModel = (await getLatestFittedModel()) ?? undefined
 
   const fixturesByPlayerId = Object.fromEntries(
     players.map((player) => [player.id, getFixtureContext(player.team, fixtures)])
@@ -100,7 +102,8 @@ async function projectPlayers(players: Player[], round: number) {
     players,
     fixturesByPlayerId,
     historicalWithVenue,
-    matchupByPlayerId
+    matchupByPlayerId,
+    fittedModel
   )
 
   return {
