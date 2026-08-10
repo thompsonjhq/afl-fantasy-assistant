@@ -7,6 +7,7 @@ import SquadView from '@/components/SquadView'
 import AnalysisCard from '@/components/AnalysisCard'
 import ScoreLogModal from '@/components/ScoreLogModal'
 import FreeAgentComparison from '@/components/FreeAgentComparison'
+import UpdateAllPanel from '@/components/UpdateAllPanel'
 
 const ANALYSIS_FEATURES = [
   {
@@ -215,6 +216,8 @@ export default function Home() {
             </div>
           )}
         </div>
+
+        <UpdateAllPanel />
 
         {players.length > 0 && <FreeAgentComparison players={players} round={round} />}
 
