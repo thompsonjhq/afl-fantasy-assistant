@@ -1,6 +1,10 @@
 'use client'
 
 import { useState } from 'react'
+import { toast } from 'sonner'
+import { RefreshCw, TriangleAlert } from 'lucide-react'
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import { Button } from '@/components/ui/button'
 
 interface StepResult {
   step: string
@@ -30,11 +34,9 @@ function summariseStep(step: StepResult): string {
 export default function UpdateAllPanel() {
   const [running, setRunning] = useState(false)
   const [steps, setSteps] = useState<StepResult[]>([])
-  const [error, setError] = useState('')
 
   async function runUpdateAll() {
     setRunning(true)
-    setError('')
     setSteps([])
 
     try {
@@ -46,64 +48,59 @@ export default function UpdateAllPanel() {
 
       const data = await res.json()
 
-      if (!res.ok || !data.success) {
-        throw new Error(data.error || 'Update failed')
-      }
+      if (!res.ok || !data.success) throw new Error(data.error || 'Update failed')
 
       setSteps(data.steps || [])
+      toast.success('Update All finished - see results below')
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Network error')
+      toast.error(err instanceof Error ? err.message : 'Network error')
     } finally {
       setRunning(false)
     }
   }
 
   return (
-    <div className="bg-white rounded-2xl overflow-hidden shadow-sm border border-gray-200">
-      <div className="flex items-center justify-between px-4 py-3 border-b border-gray-100">
+    <Card>
+      <CardHeader className="flex flex-row items-center justify-between">
         <div>
-          <h2 className="font-semibold text-gray-900">Update All Data</h2>
-          <p className="text-xs text-gray-500 mt-0.5">
+          <CardTitle>Update All Data</CardTitle>
+          <p className="mt-0.5 text-sm text-muted-foreground">
             Squad sync, real match-log backfill, injuries/selections, model refit — one call.
           </p>
         </div>
-
-        <button
-          onClick={runUpdateAll}
-          disabled={running}
-          className="bg-green-700 hover:bg-green-800 disabled:opacity-60 text-white font-semibold text-sm px-3 py-1.5 rounded-lg transition-colors flex items-center gap-1.5 shrink-0"
-        >
-          {running && <div className="w-3.5 h-3.5 border-2 border-white border-t-transparent rounded-full animate-spin" />}
+        <Button onClick={runUpdateAll} disabled={running} className="gap-1.5 shrink-0">
+          <RefreshCw className={running ? 'h-3.5 w-3.5 animate-spin' : 'h-3.5 w-3.5'} />
           {running ? 'Updating…' : 'Update All'}
-        </button>
-      </div>
+        </Button>
+      </CardHeader>
 
-      <div className="px-4 py-3 text-xs text-amber-700 bg-amber-50 border-b border-amber-100">
-        Footywire blocks scraping from Vercel&apos;s servers — the match-log and injury steps only
-        pull real data when this is run from <code className="bg-amber-100 px-1 rounded">npm run dev</code> on
-        your own machine (pointed at the same database). On the deployed site, only the squad sync
-        and model refit steps will do anything.
-      </div>
-
-      {running && (
-        <div className="px-4 py-3 text-xs text-blue-600 animate-pulse">
-          Running — the backfill step is deliberately slow (polite delay between requests), this can take a few minutes for a full squad.
+      <CardContent className="flex flex-col gap-3">
+        <div className="flex gap-2 rounded-lg border border-amber-200 bg-amber-50 p-3 text-xs text-amber-800">
+          <TriangleAlert className="h-4 w-4 shrink-0" />
+          <p>
+            Footywire blocks scraping from Vercel&apos;s servers — the match-log and injury steps only
+            pull real data when this is run from <code className="rounded bg-amber-100 px-1">npm run dev</code> on
+            your own machine (pointed at the same database). On the deployed site, only the squad sync
+            and model refit steps will do anything.
+          </p>
         </div>
-      )}
 
-      {error && (
-        <div className="px-4 py-3 text-xs text-red-600 bg-red-50">{error}</div>
-      )}
+        {running && (
+          <p className="text-xs text-muted-foreground animate-pulse">
+            Running — the backfill step is deliberately slow (polite delay between requests), this can take a few minutes for a full squad.
+          </p>
+        )}
 
-      {steps.length > 0 && !running && (
-        <div className="px-4 py-3 flex flex-col gap-1.5">
-          {steps.map((step, index) => (
-            <div key={`${step.step}-${index}`} className="text-xs text-gray-700">
-              <span className="font-semibold text-gray-900">{step.step}:</span> {summariseStep(step)}
-            </div>
-          ))}
-        </div>
-      )}
-    </div>
+        {steps.length > 0 && !running && (
+          <div className="flex flex-col gap-1.5 rounded-lg border border-border bg-muted/30 p-3">
+            {steps.map((step, index) => (
+              <div key={`${step.step}-${index}`} className="text-xs text-foreground">
+                <span className="font-semibold">{step.step}:</span> {summariseStep(step)}
+              </div>
+            ))}
+          </div>
+        )}
+      </CardContent>
+    </Card>
   )
 }
