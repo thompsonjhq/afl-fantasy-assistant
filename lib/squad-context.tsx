@@ -69,9 +69,20 @@ export function mapRow(row: PlayerRow): Player {
   }
 }
 
+/** No hardcoded "current round" exists anywhere - derive it from the latest round any squad
+ * player actually has a recorded score for, since that's real data we already have on hand. */
+function deriveCurrentRound(squad: Player[]): number {
+  const maxRecordedRound = squad.reduce((max, player) => {
+    const playerMax = (player.scoreRounds || []).reduce((m, r) => Math.max(m, r), 0)
+    return Math.max(max, playerMax)
+  }, 0)
+
+  return maxRecordedRound > 0 ? maxRecordedRound + 1 : 1
+}
+
 export function SquadProvider({ children }: { children: ReactNode }) {
   const [players, setPlayers] = useState<Player[]>([])
-  const [round, setRoundState] = useState(9)
+  const [round, setRoundState] = useState(1)
   const [syncing, setSyncing] = useState(false)
   const [projecting, setProjecting] = useState(false)
   const [loading, setLoading] = useState(true)
@@ -105,29 +116,45 @@ export function SquadProvider({ children }: { children: ReactNode }) {
     }
   }, [])
 
-  const fetchAndProjectSquad = useCallback(async (selectedRound: number) => {
+  const fetchSquadRows = useCallback(async (): Promise<Player[] | null> => {
     const { data, error } = await supabase.from('players').select('*').order('position', { ascending: true })
 
     if (error) {
       console.error('Error loading squad:', error)
-      return
+      return null
     }
 
-    const squad = ((data || []) as PlayerRow[]).map(mapRow)
-    await refreshProjections(squad, selectedRound)
-  }, [refreshProjections])
+    return ((data || []) as PlayerRow[]).map(mapRow)
+  }, [])
 
   const loadSquad = useCallback(async (selectedRound: number) => {
     setLoading(true)
-    await fetchAndProjectSquad(selectedRound)
+    const squad = await fetchSquadRows()
+    if (squad) await refreshProjections(squad, selectedRound)
     setLoading(false)
-  }, [fetchAndProjectSquad])
+  }, [fetchSquadRows, refreshProjections])
+
+  // Fetches the squad and re-derives "current round" from it, rather than trusting whatever
+  // round is already in state - used on mount and after a fresh AFL Fantasy sync, since both
+  // are "get the latest truth" moments. Manual round changes elsewhere are left alone.
+  const loadSquadAndDeriveRound = useCallback(async () => {
+    setLoading(true)
+    const squad = await fetchSquadRows()
+
+    if (squad) {
+      const derivedRound = deriveCurrentRound(squad)
+      setRoundState(derivedRound)
+      await refreshProjections(squad, derivedRound)
+    }
+
+    setLoading(false)
+  }, [fetchSquadRows, refreshProjections])
 
   useEffect(() => {
     // Standard fetch-on-mount - only run once, subsequent squad changes go through
     // handleSquadChange/reloadKey instead.
     // eslint-disable-next-line react-hooks/set-state-in-effect
-    fetchAndProjectSquad(round).finally(() => setLoading(false))
+    loadSquadAndDeriveRound()
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
@@ -150,7 +177,7 @@ export function SquadProvider({ children }: { children: ReactNode }) {
       if (data.success) {
         toast.success(`Synced ${data.synced} players from AFL Fantasy`)
         setReloadKey((value) => value + 1)
-        await loadSquad(round)
+        await loadSquadAndDeriveRound()
       } else {
         toast.error(data.error || 'Sync failed')
       }
