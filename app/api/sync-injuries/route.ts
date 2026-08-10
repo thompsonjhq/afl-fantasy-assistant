@@ -3,6 +3,7 @@ import { supabase } from '@/lib/supabase'
 import { fetchInjuryList } from '@/lib/scrapers/footywireInjuries'
 import { fetchTeamSelectionChanges } from '@/lib/scrapers/footywireSelections'
 import { getErrorMessage } from '@/lib/scrapers/footywireShared'
+import { normaliseTeamName } from '@/lib/matchups'
 
 function normaliseName(name: string): string {
   return name.toLowerCase().replace(/[^a-z ]/g, '').replace(/\s+/g, ' ').trim()
@@ -26,7 +27,7 @@ export async function POST() {
             returning_timeframe: entry.returning,
             scraped_at: entry.scrapedAt,
           })),
-          { onConflict: 'player_name' }
+          { onConflict: 'player_name,club' }
         )
 
       if (error) throw error
@@ -50,18 +51,21 @@ export async function POST() {
       if (error) throw error
     }
 
-    // Match real injuries against squad players by name and refresh their injured flag/note.
+    // Match real injuries against squad players by name AND club - name alone isn't unique
+    // (e.g. Max King plays for both St Kilda and Sydney as two different real players).
     const { data: squadPlayers, error: squadError } = await supabase
       .from('players')
-      .select('id, name')
+      .select('id, name, team')
 
     if (squadError) throw squadError
 
-    const injuryByName = new Map(injuries.map((entry) => [normaliseName(entry.playerName), entry]))
+    const injuryByKey = new Map(
+      injuries.map((entry) => [`${normaliseName(entry.playerName)}__${normaliseTeamName(entry.club)}`, entry])
+    )
     let updatedSquadPlayers = 0
 
     for (const squadPlayer of squadPlayers || []) {
-      const match = injuryByName.get(normaliseName(squadPlayer.name))
+      const match = injuryByKey.get(`${normaliseName(squadPlayer.name)}__${normaliseTeamName(squadPlayer.team)}`)
 
       const { error } = await supabase
         .from('players')
