@@ -62,6 +62,7 @@ function rowFromDb(row: Record<string, unknown>): PlayerGameLogRow {
     team: row.team ? String(row.team) : undefined,
     season: Number(row.season),
     round: Number(row.round),
+    matchId: row.match_id != null ? Number(row.match_id) : undefined,
     date: row.date ? String(row.date) : undefined,
     opponent: row.opponent ? String(row.opponent) : undefined,
     venue: row.venue ? String(row.venue) : undefined,
@@ -86,6 +87,7 @@ export async function upsertGameLogRows(rows: PlayerGameLogRow[]): Promise<{ ups
         team: row.team,
         season: row.season,
         round: row.round,
+        match_id: row.matchId,
         date: row.date,
         opponent: row.opponent,
         venue: row.venue,
@@ -96,7 +98,7 @@ export async function upsertGameLogRows(rows: PlayerGameLogRow[]): Promise<{ ups
         goals: row.goals,
         scraped_at: new Date().toISOString(),
       })),
-      { onConflict: 'player_name,season,round' }
+      { onConflict: 'player_name,season,match_id' }
     )
 
   if (error) throw error

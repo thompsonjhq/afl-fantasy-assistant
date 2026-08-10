@@ -44,8 +44,13 @@ function parseGameLogHtml(html: string, playerName: string, team: string, season
     const opponentHref = opponentLink.attr('href') || ''
     const opponent = teamNameFromClubSlug(opponentHref) || opponentLink.text().trim() || undefined
 
-    const resultText = $(cells[3]).text().trim()
+    const resultLink = $(cells[3]).find('a')
+    const resultText = resultLink.text().trim() || $(cells[3]).text().trim()
     const win = /^Win/i.test(resultText) ? true : /^Loss/i.test(resultText) ? false : undefined
+    // Round numbers aren't a safe uniqueness key - a team can play two fixtures labelled the same
+    // round in one season (e.g. rescheduled/make-up games), so key on footywire's own match id instead.
+    const matchIdMatch = (resultLink.attr('href') || '').match(/mid=(\d+)/)
+    const matchId = matchIdMatch ? Number(matchIdMatch[1]) : undefined
 
     const cellAt = (index: number) => parseStatCell($(cells[index]).text())
 
@@ -66,6 +71,7 @@ function parseGameLogHtml(html: string, playerName: string, team: string, season
       team,
       season,
       round,
+      matchId,
       date,
       opponent,
       win,

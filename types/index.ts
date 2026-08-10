@@ -114,6 +114,7 @@ export interface PlayerGameLogRow {
   team?: string
   season: number
   round: number
+  matchId?: number
   date?: string
   opponent?: string
   venue?: string
