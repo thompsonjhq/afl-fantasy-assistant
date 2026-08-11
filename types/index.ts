@@ -12,6 +12,7 @@ export type ProjectionFactorKind =
   | 'injury'
   | 'volatility'
   | 'data'
+  | 'role_security'
 
 export interface ProjectionFactor {
   kind: ProjectionFactorKind
@@ -124,6 +125,48 @@ export interface PlayerGameLogRow {
   fantasyPoints: number
   disposals?: number
   goals?: number
+  kicks?: number
+  handballs?: number
+  marks?: number
+  behinds?: number
+  tackles?: number
+  hitouts?: number
+  goalAssists?: number
+  inside50s?: number
+  clearances?: number
+  clangers?: number
+  rebound50s?: number
+  freesFor?: number
+  freesAgainst?: number
+  bounces?: number
+}
+
+/** Advanced per-match stats from footywire's ft_match_statistics?mid=<id>&advv=Y page (see
+ * lib/scrapers/footywireAdvancedStats.ts). Unlike PlayerGameLogRow this comes from a per-match
+ * page covering both teams at once, not a per-player-season page. */
+export interface PlayerAdvancedStatRow {
+  playerName: string
+  team: string
+  opponent: string
+  season: number
+  matchId: number
+  togPct?: number
+  contestedPossessions?: number
+  uncontestedPossessions?: number
+  effectiveDisposals?: number
+  disposalEfficiencyPct?: number
+  contestedMarks?: number
+  goalAssists?: number
+  marksInside50?: number
+  onePercenters?: number
+  bounces?: number
+  centreClearances?: number
+  stoppageClearances?: number
+  scoreInvolvements?: number
+  metresGained?: number
+  turnovers?: number
+  intercepts?: number
+  tacklesInside50?: number
 }
 
 export interface InjuryEntry {

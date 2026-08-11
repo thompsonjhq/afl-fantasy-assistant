@@ -49,7 +49,7 @@ try {
 
     try {
         $response = Invoke-WebRequest -Uri "http://localhost:3000/api/update-all" -Method POST `
-            -Body "{}" -ContentType "application/json" -TimeoutSec 600 -UseBasicParsing
+            -Body "{}" -ContentType "application/json" -TimeoutSec 900 -UseBasicParsing
 
         Log "Update complete:"
         Add-Content -Path $logFile -Value $response.Content

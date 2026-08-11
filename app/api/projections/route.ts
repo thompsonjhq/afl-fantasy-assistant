@@ -4,7 +4,8 @@ import { fetchFreeAgentsWithStats } from '@/lib/aflFantasy'
 import { CachedPlayerHistoricalStats, getHistoricalStatsForPlayers } from '@/lib/aflTables'
 import { getMatchupsForPlayers } from '@/lib/matchups'
 import { getVenueProfilesForPlayers } from '@/lib/venues'
-import { calculateTeamProjections, HistoricalProjectionInput } from '@/lib/projections'
+import { calculateTeamProjections, HistoricalProjectionInput, RoleSecurityProjectionInput } from '@/lib/projections'
+import { getRoleSecurityInputsForPlayers } from '@/lib/roleSecurity'
 import { buildFreeAgentComparisons } from '@/lib/freeAgents'
 import { getLatestFittedModel } from '@/lib/model'
 import { Player } from '@/types'
@@ -99,12 +100,22 @@ async function projectPlayers(players: Player[], round: number) {
     fixturesByPlayerId
   )
 
+  const roleSecurityByPlayerName = await getRoleSecurityInputsForPlayers(
+    players.map((player) => player.name),
+    CURRENT_YEAR
+  )
+
+  const roleSecurityByPlayerId: Record<string, RoleSecurityProjectionInput | undefined> = Object.fromEntries(
+    players.map((player) => [player.id, roleSecurityByPlayerName[player.name]])
+  )
+
   const projectedPlayers = calculateTeamProjections(
     players,
     fixturesByPlayerId,
     historicalWithVenue,
     matchupByPlayerId,
-    fittedModel
+    fittedModel,
+    roleSecurityByPlayerId
   )
 
   return {

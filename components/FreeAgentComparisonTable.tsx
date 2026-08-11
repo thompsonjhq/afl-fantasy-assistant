@@ -21,6 +21,7 @@ export default function FreeAgentComparisonTable({ comparisons }: { comparisons:
           <TableHead className="text-right">Proj</TableHead>
           <TableHead>Compare to</TableHead>
           <TableHead className="text-right">Gain</TableHead>
+          <TableHead className="text-right">VORP</TableHead>
           <TableHead>Reason</TableHead>
         </TableRow>
       </TableHeader>
@@ -56,6 +57,15 @@ export default function FreeAgentComparisonTable({ comparisons }: { comparisons:
                 <Badge variant={comparison.netGain >= 0 ? 'default' : 'destructive'} className={comparison.netGain >= 0 ? 'bg-emerald-600' : undefined}>
                   {comparison.netGain >= 0 ? '+' : ''}{comparison.netGain}
                 </Badge>
+              )}
+            </TableCell>
+            <TableCell className="text-right">
+              {comparison.vorp === undefined ? (
+                '—'
+              ) : (
+                <span className={comparison.vorp >= 0 ? 'text-emerald-600' : 'text-muted-foreground'}>
+                  {comparison.vorp >= 0 ? '+' : ''}{comparison.vorp}
+                </span>
               )}
             </TableCell>
             <TableCell className="min-w-64 text-xs text-muted-foreground">{comparison.reason}</TableCell>

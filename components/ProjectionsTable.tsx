@@ -8,7 +8,9 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { difficultyBadgeClass } from '@/lib/difficultyTheme'
 import { opponentLine } from '@/lib/playerDisplay'
+import { getConsistencyScore, getFormLabel } from '@/lib/projections'
 import { ProjectionFactorList } from '@/components/ProjectionFactorList'
+import { ScoreBreakdownChart } from '@/components/ScoreBreakdownChart'
 
 interface ProjectionsTableProps {
   players: Player[]
@@ -22,6 +24,37 @@ const RANGE_SCALE_MAX = 150
 function matchesFilter(player: Player, filter: PositionFilter): boolean {
   if (filter === 'ALL') return true
   return player.position === filter || player.position2 === filter
+}
+
+const FORM_BADGE_CLASS: Record<'Hot' | 'Cold' | 'Steady', string> = {
+  Hot: 'border-emerald-600/40 bg-emerald-600/10 text-emerald-700 dark:text-emerald-400',
+  Cold: 'border-sky-600/40 bg-sky-600/10 text-sky-700 dark:text-sky-400',
+  Steady: '',
+}
+
+function FormBadge({ factors }: { factors?: Player['projectionFactors'] }) {
+  const form = getFormLabel(factors)
+  if (!form) return <span className="text-muted-foreground">-</span>
+
+  return (
+    <Badge variant="outline" className={FORM_BADGE_CLASS[form]}>
+      {form}
+    </Badge>
+  )
+}
+
+function ConsistencyCell({ factors }: { factors?: Player['projectionFactors'] }) {
+  const score = getConsistencyScore(factors)
+  if (score === null) return <span className="text-muted-foreground">-</span>
+
+  return (
+    <div className="flex items-center justify-end gap-1.5">
+      <div className="h-1.5 w-10 overflow-hidden rounded-full bg-muted">
+        <div className="h-full rounded-full bg-primary/60" style={{ width: `${score}%` }} />
+      </div>
+      <span className="text-xs tabular-nums text-muted-foreground">{score}</span>
+    </div>
+  )
 }
 
 function RangeBar({ low, score, high }: { low?: number; score?: number; high?: number }) {
@@ -71,6 +104,8 @@ export default function ProjectionsTable({ players }: ProjectionsTableProps) {
             <TableHead>Opponent</TableHead>
             <TableHead className="text-right">Avg</TableHead>
             <TableHead>Range</TableHead>
+            <TableHead>Form</TableHead>
+            <TableHead className="text-right">Consistency</TableHead>
             <TableHead className="text-right">Confidence</TableHead>
           </TableRow>
         </TableHeader>
@@ -109,6 +144,12 @@ export default function ProjectionsTable({ players }: ProjectionsTableProps) {
                   <TableCell>
                     <RangeBar low={player.projectionLow} score={player.projectedScore} high={player.projectionHigh} />
                   </TableCell>
+                  <TableCell>
+                    <FormBadge factors={player.projectionFactors} />
+                  </TableCell>
+                  <TableCell className="text-right">
+                    <ConsistencyCell factors={player.projectionFactors} />
+                  </TableCell>
                   <TableCell className="text-right">
                     <Badge variant="outline">{player.projectionConfidence || 'Medium'}</Badge>
                   </TableCell>
@@ -116,9 +157,12 @@ export default function ProjectionsTable({ players }: ProjectionsTableProps) {
 
                 {expanded && (
                   <TableRow className="bg-muted/30">
-                    <TableCell colSpan={6}>
+                    <TableCell colSpan={8}>
                       <div className="mb-2 text-xs text-muted-foreground">{opponentLine(player)}</div>
                       <ProjectionFactorList factors={player.projectionFactors} playerId={player.id} />
+                      <div className="mt-3 border-t border-border pt-3">
+                        <ScoreBreakdownChart playerName={player.name} />
+                      </div>
                     </TableCell>
                   </TableRow>
                 )}

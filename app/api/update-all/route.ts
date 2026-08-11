@@ -1,12 +1,14 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { supabase } from '@/lib/supabase'
+import { fetchMatchRefsForSeason } from '@/lib/scrapers/footywireAdvancedStats'
 
-// One "update everything" endpoint: squad sync -> real game-log backfill -> real injuries/
-// selections -> refit the projection model. Meant to be triggered locally (npm run dev) against
-// the same Supabase project as production - footywire's Cloudflare protection blocks Vercel's
-// IPs, so the backfill/injury steps below just come back empty if this is called against the
-// deployed site (squad sync and model-fit don't touch footywire, so those still work either way).
-export const maxDuration = 300
+// One "update everything" endpoint: squad sync -> real game-log backfill -> real advanced-stats
+// backfill -> real injuries/selections -> refit the projection model. Meant to be triggered
+// locally (npm run dev) against the same Supabase project as production - footywire's Cloudflare
+// protection blocks Vercel's IPs, so the backfill/injury steps below just come back empty if this
+// is called against the deployed site (squad sync and model-fit don't touch footywire, so those
+// still work either way).
+export const maxDuration = 900
 
 interface UpdateAllBody {
   seasons?: number[]
@@ -63,6 +65,38 @@ export async function POST(request: NextRequest) {
     }
 
     steps.push({ step: 'backfill-game-logs', totalPlayers: players.length, totalRowsUpserted, batches })
+  }
+
+  const currentSeason = new Date().getFullYear()
+  const matchRefs = await fetchMatchRefsForSeason(currentSeason)
+
+  if (matchRefs.length === 0) {
+    steps.push({ step: 'backfill-advanced-stats', error: 'No match list found for current season' })
+  } else {
+    // Same "resolve once, pass through explicitly, drive the loop here" shape as the
+    // game-logs step above - keeps offset-based pagination stable across batches.
+    const batchSize = body.batchSize || 5
+
+    let offset = 0
+    let totalRowsUpserted = 0
+    let batches = 0
+
+    while (offset < matchRefs.length) {
+      const batchResult = await postJson(origin, '/api/backfill-advanced-stats', {
+        season: currentSeason,
+        matchRefs,
+        delayMs: body.delayMs,
+        batchSize,
+        offset,
+        chain: false,
+      })
+
+      totalRowsUpserted += Number(batchResult.totalRowsUpserted) || 0
+      batches += 1
+      offset += batchSize
+    }
+
+    steps.push({ step: 'backfill-advanced-stats', season: currentSeason, totalMatches: matchRefs.length, totalRowsUpserted, batches })
   }
 
   const injuriesResult = await postJson(origin, '/api/sync-injuries', {})

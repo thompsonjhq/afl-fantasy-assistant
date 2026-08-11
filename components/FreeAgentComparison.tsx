@@ -20,6 +20,7 @@ type PositionFilter = (typeof POSITION_FILTERS)[number]
 
 const SORT_OPTIONS = [
   { value: 'netGain', label: 'Net gain' },
+  { value: 'vorp', label: 'VORP' },
   { value: 'projected', label: 'Projected' },
   { value: 'avg', label: 'Season avg' },
 ] as const
@@ -28,6 +29,7 @@ type SortBy = (typeof SORT_OPTIONS)[number]['value']
 function sortValue(comparison: Comparison, sortBy: SortBy): number {
   if (sortBy === 'projected') return comparison.player.projectedScore || 0
   if (sortBy === 'avg') return comparison.player.avgScore || 0
+  if (sortBy === 'vorp') return comparison.vorp ?? -999
   return comparison.netGain ?? -999
 }
 

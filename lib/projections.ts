@@ -19,6 +19,14 @@ export interface HistoricalProjectionInput {
   opponentVenuePointsVsExpected?: number
 }
 
+export interface RoleSecurityProjectionInput {
+  recentTogPct?: number
+  seasonTogPct?: number
+  recentCentreClearances?: number
+  seasonCentreClearances?: number
+  gamesInSample: number
+}
+
 export interface MatchupProjectionInput {
   team: string
   position: string
@@ -157,6 +165,20 @@ function getMatchupAdjustment(matchup?: MatchupProjectionInput | null): number {
   return clamp(matchup.pointsConcededVsExpected, -12, 12)
 }
 
+/** Nudges the projection from a player's own recent-vs-season TOG%/Centre Clearances trend
+ * (see lib/roleSecurity.ts) - a role-trust signal independent of raw scoring. Needs at least
+ * a handful of games in the sample (enforced by the caller) so a single blowout game doesn't
+ * swing it. Coefficients are deliberately small: this is a nudge on top of form/opponent, not
+ * a replacement for them. */
+function getRoleSecurityAdjustment(input?: RoleSecurityProjectionInput): number {
+  if (!input) return 0
+
+  const togDelta = (input.recentTogPct ?? input.seasonTogPct ?? 0) - (input.seasonTogPct ?? 0)
+  const cclDelta = (input.recentCentreClearances ?? input.seasonCentreClearances ?? 0) - (input.seasonCentreClearances ?? 0)
+
+  return clamp(togDelta * 0.15 + cclDelta * 1.2, -6, 6)
+}
+
 /** Maps a real scraped injury/return-timeframe note (from footywire's injury list) to a severity-aware penalty multiplier, replacing the old flat 0.25 constant used when all we had was a boolean flag. */
 function getInjuryPenaltyMultiplier(injuryNote?: string): number {
   if (!injuryNote) return 0.25
@@ -249,7 +271,8 @@ export function calculatePlayerProjection(
   fixture?: FixtureProjectionInput,
   historical?: HistoricalProjectionInput,
   matchup?: MatchupProjectionInput | null,
-  fittedModel?: FittedModel
+  fittedModel?: FittedModel,
+  roleSecurity?: RoleSecurityProjectionInput
 ): PlayerProjection {
   const baseAverage = getBaseAverage(player, historical)
   const recentAverage = getRecentAverage(player)
@@ -260,6 +283,7 @@ export function calculatePlayerProjection(
   const homeAwayAdjustment = getHomeAwayAdjustment(fixture)
   const playerVenueAdjustment = getPlayerVenueAdjustment(historical)
   const opponentVenueAdjustment = getOpponentVenueAdjustment(historical)
+  const roleSecurityAdjustment = getRoleSecurityAdjustment(roleSecurity)
   const injuryMultiplier = player.injured ? getInjuryPenaltyMultiplier(player.injuryNote) : 1
 
   const afterForm = baseAverage * formMultiplier
@@ -268,11 +292,12 @@ export function calculatePlayerProjection(
   const afterHomeAway = afterMatchup + homeAwayAdjustment
   const afterPlayerVenue = afterHomeAway + playerVenueAdjustment
   const afterOpponentVenue = afterPlayerVenue + opponentVenueAdjustment
+  const afterRoleSecurity = afterOpponentVenue + roleSecurityAdjustment
 
   const modelScore = getFittedModelScore(fittedModel, baseAverage, recentAverage, historical, matchup, fixture)
   const usedFittedModel = modelScore !== null
 
-  const beforeInjury = usedFittedModel ? modelScore! : afterOpponentVenue
+  const beforeInjury = usedFittedModel ? modelScore! : afterRoleSecurity
   const afterInjury = beforeInjury * injuryMultiplier
 
   const projectedScore = Math.max(0, Math.round(afterInjury))
@@ -376,6 +401,18 @@ label: 'Opp Venue',
       available: opponentVenueGames >= 4,
     },
     {
+      kind: 'role_security',
+      label: 'Role',
+      value: roleSecurity
+        ? `TOG ${round1(roleSecurity.recentTogPct ?? roleSecurity.seasonTogPct ?? 0)}%`
+        : 'No data',
+      impact: round1(roleSecurityAdjustment),
+      description: roleSecurity
+        ? `Last ${Math.min(3, roleSecurity.gamesInSample)} games' TOG%/Centre Clearances vs this season's own average (${round1(roleSecurity.seasonTogPct ?? 0)}% TOG, ${round1(roleSecurity.seasonCentreClearances ?? 0)} CCL) over ${roleSecurity.gamesInSample} sampled games.`
+        : 'No advanced-stats history yet (needs footywire advanced-stats backfill) - neutral adjustment used.',
+      available: Boolean(roleSecurity),
+    },
+    {
       kind: 'injury',
       label: 'Injury',
       value: player.injured ? player.injuryNote || 'Flagged' : 'Clear',
@@ -431,7 +468,8 @@ export function calculateTeamProjections<T extends Player>(
   fixturesByPlayerId: Record<string, FixtureProjectionInput | undefined> = {},
   historicalByPlayerId: Record<string, HistoricalProjectionInput | undefined> = {},
   matchupByPlayerId: Record<string, MatchupProjectionInput | null | undefined> = {},
-  fittedModel?: FittedModel
+  fittedModel?: FittedModel,
+  roleSecurityByPlayerId: Record<string, RoleSecurityProjectionInput | undefined> = {}
 ) {
   return players
     .map((player) => ({
@@ -441,12 +479,33 @@ export function calculateTeamProjections<T extends Player>(
         fixturesByPlayerId[player.id],
         historicalByPlayerId[player.id],
         matchupByPlayerId[player.id],
-        fittedModel
+        fittedModel,
+        roleSecurityByPlayerId[player.id]
       ),
       fixture: fixturesByPlayerId[player.id],
       matchup: matchupByPlayerId[player.id],
     }))
     .sort((a, b) => b.projectedScore - a.projectedScore)
+}
+
+/** Derives an at-a-glance Hot/Cold/Steady label from the same 'form' factor already computed
+ * per player, so the Projections table can show it as a column without re-deriving anything. */
+export function getFormLabel(factors?: ProjectionFactor[]): 'Hot' | 'Cold' | 'Steady' | null {
+  const formFactor = factors?.find((factor) => factor.kind === 'form')
+  if (!formFactor || !formFactor.available) return null
+  if (formFactor.impact >= 2) return 'Hot'
+  if (formFactor.impact <= -2) return 'Cold'
+  return 'Steady'
+}
+
+/** Turns the existing volatility factor (8-26 range, lower = more consistent) into a 0-100
+ * "Consistency" score for the table, where 100 is the steadiest scorer in the range. */
+export function getConsistencyScore(factors?: ProjectionFactor[]): number | null {
+  const volatilityFactor = factors?.find((factor) => factor.kind === 'volatility')
+  if (!volatilityFactor || typeof volatilityFactor.value !== 'number') return null
+
+  const volatility = clamp(volatilityFactor.value, 8, 26)
+  return Math.round(100 - ((volatility - 8) / (26 - 8)) * 100)
 }
 
 export function isPositionEligible(player: Player, position: string): boolean {

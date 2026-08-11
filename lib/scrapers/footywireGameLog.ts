@@ -78,6 +78,20 @@ function parseGameLogHtml(html: string, playerName: string, team: string, season
       fantasyPoints: Math.round(fantasyPoints),
       disposals: cellAt(6),
       goals: cellAt(8),
+      kicks: cellAt(4),
+      handballs: cellAt(5),
+      marks: cellAt(7),
+      behinds: cellAt(9),
+      tackles: cellAt(10),
+      hitouts: cellAt(11),
+      goalAssists: cellAt(12),
+      inside50s: cellAt(13),
+      clearances: cellAt(14),
+      clangers: cellAt(15),
+      rebound50s: cellAt(16),
+      freesFor: cellAt(17),
+      freesAgainst: cellAt(18),
+      bounces: cellAt(19),
     })
   })
 

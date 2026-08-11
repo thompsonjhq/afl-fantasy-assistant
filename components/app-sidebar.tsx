@@ -10,6 +10,9 @@ import {
   Sparkles,
   Database,
   Trophy,
+  Newspaper,
+  ShieldAlert,
+  Target,
 } from 'lucide-react'
 import {
   Sidebar,
@@ -27,7 +30,10 @@ const NAV_ITEMS = [
   { href: '/squad', label: 'Squad', icon: Users },
   { href: '/projections', label: 'Projections', icon: BarChart3 },
   { href: '/free-agents', label: 'Free Agents', icon: UserPlus },
+  { href: '/dvp', label: 'DVP Stats', icon: Target },
+  { href: '/team-news', label: 'Team News', icon: Newspaper },
   { href: '/insights', label: 'AI Insights', icon: Sparkles },
+  { href: '/model-accuracy', label: 'Model Accuracy', icon: ShieldAlert },
   { href: '/data', label: 'Data', icon: Database },
 ]
 

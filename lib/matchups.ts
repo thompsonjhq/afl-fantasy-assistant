@@ -256,6 +256,38 @@ export async function getTeamMatchupProfile(
   }
 }
 
+/** Every team's latest DVP profile per position, for a browsable research page rather than the
+ * single team+position lookups getTeamMatchupProfile does for the projection engine. Rows come
+ * back ordered newest-as_of_round-first, so the first row seen per (team, position) is already
+ * the latest - no separate "keep max as_of_round" pass needed. */
+export async function getAllTeamMatchupProfiles(season: number): Promise<TeamMatchupProfile[]> {
+  const { data, error } = await supabase
+    .from('team_matchup_profiles')
+    .select('*')
+    .eq('season', season)
+    .order('as_of_round', { ascending: false })
+
+  if (error || !data) return []
+
+  const latestByKey = new Map<string, TeamMatchupProfile>()
+
+  for (const row of data) {
+    const key = `${row.team}__${row.position}`
+    if (latestByKey.has(key)) continue
+
+    latestByKey.set(key, {
+      team: row.team,
+      position: row.position,
+      games: Number(row.games || 0),
+      avgScoreConceded: Number(row.avg_score_conceded || 0),
+      avgExpectedScore: Number(row.avg_expected_score || 0),
+      pointsConcededVsExpected: Number(row.points_conceded_vs_expected || 0),
+    })
+  }
+
+  return Array.from(latestByKey.values())
+}
+
 export async function getMatchupsForPlayers(
   season: number,
   asOfRound: number,
