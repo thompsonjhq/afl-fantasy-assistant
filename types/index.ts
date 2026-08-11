@@ -58,6 +58,7 @@ export interface Player extends PlayerProjectionFields {
   status?: string
   ownedByTeamId?: number
   ownedByTeamName?: string
+  fixture?: FixtureContext
 }
 
 export interface PlayerWithStats extends Player {
