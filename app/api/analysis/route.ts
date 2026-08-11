@@ -57,9 +57,11 @@ Rules:
 function projectionFactorText(player: Player) {
   if (!player.projectionFactors?.length) return 'No factor breakdown supplied.'
 
-  return player.projectionFactors.map((factor) => (
-    `- ${factor.label}: ${factor.value}; impact ${factor.impact > 0 ? '+' : ''}${factor.impact}; ${factor.available ? factor.description : `Unavailable: ${factor.description}`}`
-  )).join('\n')
+  return player.projectionFactors.map((factor) => {
+    const impactText = `impact ${factor.impact > 0 ? '+' : ''}${factor.impact}`
+    if (!factor.available) return `- ${factor.label}: ${factor.value}; ${impactText}; unavailable`
+    return `- ${factor.label}: ${factor.value}; ${impactText}; ${factor.description}`
+  }).join('\n')
 }
 
 export async function POST(request: NextRequest) {
@@ -119,7 +121,7 @@ ${projectionFactorText(player)}`
       freeAgentComparisons = buildFreeAgentComparisons(projectedFreeAgents, projectedPlayers, 35)
 
       userPrompt += `\n\n=== FREE AGENT REPLACEMENT COMPARISONS ===\n`
-      userPrompt += freeAgentComparisons.slice(0, 20).map((comparison, index) => (
+      userPrompt += freeAgentComparisons.slice(0, 6).map((comparison, index) => (
         `${index + 1}. ${comparison.player.name} (${comparison.player.position}${comparison.player.position2 ? `/${comparison.player.position2}` : ''}, ${comparison.player.team}) projects ${comparison.player.projectedScore}. ` +
         (comparison.replacementPlayer
           ? `Comparable squad player: ${comparison.replacementPlayer.name}, projection ${comparison.replacementPlayer.projectedScore}. Net: ${comparison.netGain && comparison.netGain >= 0 ? '+' : ''}${comparison.netGain}.`

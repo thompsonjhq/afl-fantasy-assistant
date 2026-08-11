@@ -59,6 +59,8 @@ export interface SelectionContext {
   outs: string[]
 }
 
+const SCORE_HISTORY_ROUNDS = 6
+
 export function buildPlayerContext(
   player: PlayerWithStats,
   opponent: string,
@@ -66,9 +68,14 @@ export function buildPlayerContext(
   selectionContext?: SelectionContext
 ): string {
   const scores = player.scores || []
-  const scoreHistory = scores.length > 0
-    ? scores.map((s, i) => `R${player.scoreRounds?.[i] ?? i + 1}: ${s}`).join(', ')
+  const recentScores = scores.slice(-SCORE_HISTORY_ROUNDS)
+  const recentRounds = player.scoreRounds?.slice(-SCORE_HISTORY_ROUNDS)
+  const scoreHistory = recentScores.length > 0
+    ? recentScores.map((s, i) => `R${recentRounds?.[i] ?? i + 1}: ${s}`).join(', ')
     : 'No scores recorded yet'
+  const scoreHistoryLabel = scores.length > recentScores.length
+    ? `Score History (last ${SCORE_HISTORY_ROUNDS} of ${scores.length} rounds)`
+    : 'Score History'
 
   const positions = player.position2
     ? `${player.position}/${player.position2}`
@@ -89,7 +96,7 @@ Team: ${player.team} | Position: ${positions}
 Season Average: ${player.seasonAvg} | Recent Average (last 5): ${player.recentAvg}
 Last Score: ${player.lastScore}
 Form Rating: ${player.formRating} | Trend: ${player.trend} | Consistency: ${player.consistency}
-Score History: ${scoreHistory}
+${scoreHistoryLabel}: ${scoreHistory}
 Highest Score: ${scores.length > 0 ? Math.max(...scores) : 'N/A'} | Lowest Score: ${scores.length > 0 ? Math.min(...scores) : 'N/A'}
 Upcoming Opponent: ${opponent} (Difficulty: ${difficulty})
 Injury Status: ${injuryStatus}${selectionLine}

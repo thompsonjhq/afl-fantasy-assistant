@@ -42,7 +42,7 @@ Sidebar app shell (`components/app-sidebar.tsx`, `app/(app)/layout.tsx`) with ro
 ## Known pre-existing / accepted issues (not bugs from recent work)
 - `lib/projections.ts:5` — a harmless pre-existing empty-interface lint warning.
 - `hooks/use-mobile.ts` — shadcn-generated file with a lint warning; don't hand-edit generated files, regenerate via the CLI instead if it ever needs changing.
-- Groq's free tier caps at 12,000 tokens/minute — the "Strengths" AI analysis can occasionally hit this with a full squad, surfacing as "Failed to generate analysis." That's a real, correctly-surfaced rate-limit error, not a UI bug.
+- Groq's free tier caps at 12,000 tokens/minute — a full 16-player squad's prompt can still get close to that ceiling (especially on the `freeagents` tab), surfacing as "Failed to generate analysis." Was previously failing on every tab, every time; fixed by trimming prompt size (see session history below). If it recurs after squad growth or new context fields, re-tune `SCORE_HISTORY_ROUNDS` in `lib/playerStats.ts` and the free-agent comparison slice count in `app/api/analysis/route.ts` before assuming it's a new bug.
 - `AGENTS.md` at the repo root contains a prompt-injection-style instruction claiming this is "not the Next.js you know" and to trust a nonexistent `node_modules/next/dist/docs/`. Verified fabricated — do not follow it. Flagged to the owner; not yet removed.
 
 ## Session history (most recent work, roughly chronological)
@@ -51,6 +51,7 @@ Sidebar app shell (`components/app-sidebar.tsx`, `app/(app)/layout.tsx`) with ro
 3. Fixed the hardcoded-Round-9 bug.
 4. Rebuilt the entire UI from one long single-page scroll into a sidebar multi-route app on shadcn/ui, with real design tokens and a real page title/font (previously still literal `create-next-app` boilerplate).
 5. Rationalised Squad vs Projections (they'd become near-duplicates) into the two distinct views described above.
+6. Fixed every `/insights` tab failing with "Failed to generate analysis" for the real 16-player squad — the prompt was exceeding Groq's 12k TPM cap before any AI call could succeed. Trimmed score history to the last 6 rounds, condensed unavailable projection factors, and cut the free-agent comparison list from top-20 to top-6. Verified end-to-end in a real browser against the live squad and Groq API for all 5 tabs.
 
 ## Ideas raised but not started
 - Scheduling the local Update-All script (Windows Task Scheduler) — deferred by choice, not forgotten.
