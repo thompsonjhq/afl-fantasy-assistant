@@ -4,6 +4,8 @@ import { useState } from 'react'
 import ReactMarkdown from 'react-markdown'
 import { Sparkles, Loader2 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
+import type { FreeAgentComparison } from '@/lib/freeAgents'
+import FreeAgentComparisonTable from '@/components/FreeAgentComparisonTable'
 
 interface ProjectionResult {
   id: string
@@ -26,6 +28,7 @@ interface AnalysisCardProps {
 export default function AnalysisCard({ description, type, players, round, freeAgents = [] }: AnalysisCardProps) {
   const [result, setResult] = useState<string>('')
   const [projections, setProjections] = useState<ProjectionResult[]>([])
+  const [comparisons, setComparisons] = useState<FreeAgentComparison[]>([])
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string>('')
 
@@ -34,6 +37,7 @@ export default function AnalysisCard({ description, type, players, round, freeAg
     setError('')
     setResult('')
     setProjections([])
+    setComparisons([])
 
     try {
       const res = await fetch('/api/analysis', {
@@ -48,6 +52,7 @@ export default function AnalysisCard({ description, type, players, round, freeAg
 
       setResult(data.content)
       setProjections(data.projections || [])
+      setComparisons(data.comparisons || [])
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Something went wrong')
     } finally {
@@ -95,6 +100,12 @@ export default function AnalysisCard({ description, type, players, round, freeAg
               </div>
             ))}
           </div>
+        </div>
+      )}
+
+      {type === 'freeagents' && comparisons.length > 0 && (
+        <div className="border-t border-border pt-4">
+          <FreeAgentComparisonTable comparisons={comparisons} />
         </div>
       )}
 

@@ -67,6 +67,8 @@ export default function SquadView({ players }: SquadViewProps) {
                     <TableHead>Player</TableHead>
                     <TableHead className="text-right">GP</TableHead>
                     <TableHead className="text-right">Avg</TableHead>
+                    <TableHead className="text-right">L3</TableHead>
+                    <TableHead className="text-right">L5</TableHead>
                     <TableHead className="text-right">Proj</TableHead>
                   </TableRow>
                 </TableHeader>

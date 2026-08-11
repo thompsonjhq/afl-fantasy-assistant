@@ -42,6 +42,8 @@ export function SquadRosterRow({ player }: { player: Player }) {
       </TableCell>
       <TableCell className="text-right text-muted-foreground">{player.gamesPlayed ?? '-'}</TableCell>
       <TableCell className="text-right font-medium">{player.avgScore}</TableCell>
+      <TableCell className="text-right text-muted-foreground">{player.last3Avg ?? '-'}</TableCell>
+      <TableCell className="text-right text-muted-foreground">{player.last5Avg ?? '-'}</TableCell>
       <TableCell className="text-right">
         <Badge className={player.projectedScore ? 'bg-primary/10 text-primary' : 'bg-muted text-muted-foreground'}>
           {player.projectedScore || '-'}

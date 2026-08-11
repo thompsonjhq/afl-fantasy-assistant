@@ -4,7 +4,8 @@ import { fetchFreeAgentsWithStats } from '@/lib/aflFantasy'
 import { CachedPlayerHistoricalStats, getHistoricalStatsForPlayers } from '@/lib/aflTables'
 import { getMatchupsForPlayers } from '@/lib/matchups'
 import { getVenueProfilesForPlayers } from '@/lib/venues'
-import { calculateTeamProjections, findWeakestComparablePlayer, HistoricalProjectionInput } from '@/lib/projections'
+import { calculateTeamProjections, HistoricalProjectionInput } from '@/lib/projections'
+import { buildFreeAgentComparisons } from '@/lib/freeAgents'
 import { getLatestFittedModel } from '@/lib/model'
 import { Player } from '@/types'
 
@@ -123,41 +124,14 @@ export async function POST(request: NextRequest) {
     const projectedSquad = squadProjection.projectedPlayers
 
     let projectedFreeAgents: Player[] = []
-    let comparisons: Array<{
-      player: Player
-      replacementPlayer?: Player
-      netGain?: number
-      reason: string
-    }> = []
+    let comparisons: ReturnType<typeof buildFreeAgentComparisons> = []
 
     if (body.includeFreeAgents) {
       const freeAgents = await fetchFreeAgentsWithStats(body.freeAgentLimit || 120)
       const freeAgentProjection = await projectPlayers(freeAgents, round)
 
       projectedFreeAgents = freeAgentProjection.projectedPlayers
-
-      comparisons = projectedFreeAgents
-        .slice(0, 60)
-        .map((freeAgent) => {
-          const replacementPlayer = findWeakestComparablePlayer(freeAgent, projectedSquad)
-          const replacementScore = replacementPlayer
-            ? replacementPlayer.projectedScore || replacementPlayer.avgScore || 0
-            : 0
-
-          const netGain = replacementPlayer
-            ? Math.round((freeAgent.projectedScore || 0) - replacementScore)
-            : undefined
-
-          return {
-            player: freeAgent,
-            replacementPlayer,
-            netGain,
-            reason: replacementPlayer
-              ? `${freeAgent.name} projects ${netGain && netGain >= 0 ? '+' : ''}${netGain ?? 0} versus ${replacementPlayer.name}.`
-              : `${freeAgent.name} is projected strongly, but no comparable squad player was found.`,
-          }
-        })
-        .sort((a, b) => (b.netGain ?? -999) - (a.netGain ?? -999))
+      comparisons = buildFreeAgentComparisons(projectedFreeAgents, projectedSquad, 60)
     }
 
     return NextResponse.json({

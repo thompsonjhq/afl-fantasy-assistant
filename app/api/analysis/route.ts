@@ -5,7 +5,8 @@ import { getHistoricalStatsForPlayers } from '@/lib/aflTables'
 import { normaliseTeamName } from '@/lib/matchups'
 import { analyzeWithGroq } from '@/lib/groq'
 import { enrichPlayerStats, buildPlayerContext, SelectionContext } from '@/lib/playerStats'
-import { calculateTeamProjections, findWeakestComparablePlayer } from '@/lib/projections'
+import { calculateTeamProjections } from '@/lib/projections'
+import { buildFreeAgentComparisons } from '@/lib/freeAgents'
 import { getLatestFittedModel } from '@/lib/model'
 import { supabase } from '@/lib/supabase'
 import { Player, PlayerWithStats } from '@/types'
@@ -105,6 +106,8 @@ ${projectionFactorText(player)}`
     )).join('\n')
     userPrompt += `\n\n=== MY SQUAD DETAIL ===\n\n${playerContexts.join('\n\n---\n\n')}`
 
+    let freeAgentComparisons: ReturnType<typeof buildFreeAgentComparisons> = []
+
     if (type === 'freeagents') {
       const freeAgents = await fetchFreeAgentsWithStats(80)
       const freeAgentFixtures = Object.fromEntries(
@@ -113,18 +116,11 @@ ${projectionFactorText(player)}`
       const freeAgentHistorical = await getHistoricalStatsForPlayers(freeAgents, CURRENT_YEAR, freeAgentFixtures)
       const projectedFreeAgents = calculateTeamProjections(freeAgents, freeAgentFixtures, freeAgentHistorical, {}, fittedModel)
 
-      const comparisons = projectedFreeAgents.slice(0, 35).map((freeAgent) => {
-        const replacementPlayer = findWeakestComparablePlayer(freeAgent, projectedPlayers)
-        const netGain = replacementPlayer
-          ? (freeAgent.projectedScore || 0) - (replacementPlayer.projectedScore || replacementPlayer.avgScore || 0)
-          : undefined
-
-        return { freeAgent, replacementPlayer, netGain }
-      }).sort((a, b) => (b.netGain ?? -999) - (a.netGain ?? -999))
+      freeAgentComparisons = buildFreeAgentComparisons(projectedFreeAgents, projectedPlayers, 35)
 
       userPrompt += `\n\n=== FREE AGENT REPLACEMENT COMPARISONS ===\n`
-      userPrompt += comparisons.slice(0, 20).map((comparison, index) => (
-        `${index + 1}. ${comparison.freeAgent.name} (${comparison.freeAgent.position}${comparison.freeAgent.position2 ? `/${comparison.freeAgent.position2}` : ''}, ${comparison.freeAgent.team}) projects ${comparison.freeAgent.projectedScore}. ` +
+      userPrompt += freeAgentComparisons.slice(0, 20).map((comparison, index) => (
+        `${index + 1}. ${comparison.player.name} (${comparison.player.position}${comparison.player.position2 ? `/${comparison.player.position2}` : ''}, ${comparison.player.team}) projects ${comparison.player.projectedScore}. ` +
         (comparison.replacementPlayer
           ? `Comparable squad player: ${comparison.replacementPlayer.name}, projection ${comparison.replacementPlayer.projectedScore}. Net: ${comparison.netGain && comparison.netGain >= 0 ? '+' : ''}${comparison.netGain}.`
           : 'No comparable squad player found.')
@@ -151,6 +147,7 @@ ${projectionFactorText(player)}`
         projectionReason: p.projectionReason,
         projectionFactors: p.projectionFactors,
       })),
+      comparisons: freeAgentComparisons,
       generatedAt: new Date().toISOString(),
     })
   } catch (error) {

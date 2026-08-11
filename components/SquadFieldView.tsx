@@ -22,7 +22,7 @@ function onField(players: Player[], line: string): Player[] {
   })
 }
 
-function FieldChip({ player }: { player: Player }) {
+function FieldChip({ player, variant = 'field' }: { player: Player; variant?: 'field' | 'bench' }) {
   const score = player.projectedScore || player.avgScore || '-'
 
   return (
@@ -51,7 +51,11 @@ function FieldChip({ player }: { player: Player }) {
             )}
           </div>
 
-          <span className="max-w-full truncate text-[11px] font-medium text-white drop-shadow-sm">
+          <span
+            className={`max-w-full truncate text-[11px] font-medium ${
+              variant === 'bench' ? 'text-foreground' : 'text-white drop-shadow-sm'
+            }`}
+          >
             {shortName(player.name)}
           </span>
           <span className="rounded bg-black/30 px-1.5 py-0.5 text-[10px] font-semibold text-white">
@@ -68,6 +72,9 @@ function FieldChip({ player }: { player: Player }) {
           <div className="text-muted-foreground">{opponentLine(player)}</div>
           <div className="text-muted-foreground">
             Avg {player.avgScore} · GP {player.gamesPlayed ?? '-'}
+          </div>
+          <div className="text-muted-foreground">
+            L3 {player.last3Avg ?? '-'} · L5 {player.last5Avg ?? '-'}
           </div>
           {player.injured && <div className="text-destructive">{player.injuryNote || 'Injured'}</div>}
         </div>
@@ -100,7 +107,7 @@ export default function SquadFieldView({ players }: SquadFieldViewProps) {
   return (
     <div className="flex flex-col gap-4">
       <div className="relative mx-auto aspect-[3/4] w-full max-w-sm">
-        <div className="absolute inset-0 rounded-[50%] bg-gradient-to-b from-emerald-500 to-emerald-700 shadow-inner dark:from-emerald-700 dark:to-emerald-900" />
+        <div className="absolute inset-0 rounded-2xl bg-gradient-to-b from-emerald-500 to-emerald-700 shadow-inner dark:from-emerald-700 dark:to-emerald-900" />
 
         <svg
           className="absolute inset-0 h-full w-full"
@@ -108,7 +115,7 @@ export default function SquadFieldView({ players }: SquadFieldViewProps) {
           preserveAspectRatio="none"
           aria-hidden="true"
         >
-          <ellipse cx="50" cy="66.5" rx="42" ry="60" fill="none" stroke="white" strokeOpacity="0.35" strokeWidth="0.6" />
+          <rect x="4" y="4" width="92" height="125" rx="2" fill="none" stroke="white" strokeOpacity="0.35" strokeWidth="0.6" />
           <circle cx="50" cy="66.5" r="10" fill="none" stroke="white" strokeOpacity="0.45" strokeWidth="0.6" />
           <rect x="44" y="60.5" width="12" height="12" fill="none" stroke="white" strokeOpacity="0.45" strokeWidth="0.5" />
           <rect x="35" y="6" width="30" height="9" fill="none" stroke="white" strokeOpacity="0.4" strokeWidth="0.5" />
@@ -128,7 +135,7 @@ export default function SquadFieldView({ players }: SquadFieldViewProps) {
           <div className="mb-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">Bench</div>
           <div className="flex flex-wrap justify-center gap-3 opacity-80 sm:justify-start">
             {bench.map((player) => (
-              <FieldChip key={player.id} player={player} />
+              <FieldChip key={player.id} player={player} variant="bench" />
             ))}
           </div>
         </div>

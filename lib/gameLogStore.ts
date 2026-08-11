@@ -167,10 +167,14 @@ export async function getPlayerVenueHistory(playerName: string, venue: string): 
   return { games: matches.length, average: round1(mean(matches.map((row) => row.fantasyPoints))) }
 }
 
-export async function getPlayerOpponentHistory(playerName: string, opponent: string): Promise<HistorySummary | null> {
+/** Rows come back ordered ascending by season/round, so slicing the tail of the filtered
+ * matches (rather than the tail of all rows) gives the most recent games against this
+ * specific opponent, which may span multiple seasons for teams that rarely meet. */
+export async function getPlayerOpponentHistory(playerName: string, opponent: string, limit?: number): Promise<HistorySummary | null> {
   const rows = await getPlayerGameLog(playerName)
   const normalisedOpponent = normaliseTeamName(opponent)
-  const matches = rows.filter((row) => row.opponent && normaliseTeamName(row.opponent) === normalisedOpponent)
+  const allMatches = rows.filter((row) => row.opponent && normaliseTeamName(row.opponent) === normalisedOpponent)
+  const matches = limit ? allMatches.slice(-limit) : allMatches
 
   if (matches.length === 0) return null
 

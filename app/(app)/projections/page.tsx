@@ -3,7 +3,7 @@
 import { useSquad } from '@/lib/squad-context'
 import { Card, CardContent } from '@/components/ui/card'
 import { Skeleton } from '@/components/ui/skeleton'
-import { ProjectionDetailCard } from '@/components/ProjectionDetailCard'
+import ProjectionsTable from '@/components/ProjectionsTable'
 
 export default function ProjectionsPage() {
   const { players, round, loading } = useSquad()
@@ -26,18 +26,16 @@ export default function ProjectionsPage() {
     )
   }
 
-  const sorted = [...players].sort((a, b) => (b.projectedScore || 0) - (a.projectedScore || 0))
-
   return (
     <div className="flex flex-col gap-4">
       <div>
         <h2 className="text-sm font-semibold text-foreground">Full squad projections - Round {round}</h2>
         <p className="text-sm text-muted-foreground">
-          Sorted by projected score. Each card states the real matchup behind the number, with every factor that fed into it.
+          Sorted by projected score. Click a row to see every factor that fed into that number.
         </p>
       </div>
 
-      {sorted.map((player) => <ProjectionDetailCard key={player.id} player={player} />)}
+      <ProjectionsTable players={players} />
     </div>
   )
 }
