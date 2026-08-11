@@ -1,18 +1,21 @@
 'use client'
 
 import { useState } from 'react'
-import { NotebookPen } from 'lucide-react'
+import { NotebookPen, Goal, List } from 'lucide-react'
 import { useSquad } from '@/lib/squad-context'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Skeleton } from '@/components/ui/skeleton'
+import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import SquadManager from '@/components/SquadManager'
 import SquadView from '@/components/SquadView'
+import SquadFieldView from '@/components/SquadFieldView'
 import ScoreLogModal from '@/components/ScoreLogModal'
 
 export default function SquadPage() {
   const { players, round, loading, handleScoresSaved } = useSquad()
   const [showScoreLog, setShowScoreLog] = useState(false)
+  const [view, setView] = useState<'field' | 'list'>('field')
 
   return (
     <>
@@ -37,7 +40,20 @@ export default function SquadPage() {
       {loading ? (
         <Skeleton className="h-64" />
       ) : players.length > 0 ? (
-        <SquadView players={players} />
+        <div className="flex flex-col gap-4">
+          <Tabs value={view} onValueChange={(value) => setView(value as 'field' | 'list')}>
+            <TabsList>
+              <TabsTrigger value="field" className="gap-1.5">
+                <Goal className="h-3.5 w-3.5" /> Field
+              </TabsTrigger>
+              <TabsTrigger value="list" className="gap-1.5">
+                <List className="h-3.5 w-3.5" /> List
+              </TabsTrigger>
+            </TabsList>
+          </Tabs>
+
+          {view === 'field' ? <SquadFieldView players={players} /> : <SquadView players={players} />}
+        </div>
       ) : (
         <Card>
           <CardContent className="py-12 text-center text-sm text-muted-foreground">

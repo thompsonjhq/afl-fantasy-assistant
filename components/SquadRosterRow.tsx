@@ -5,35 +5,11 @@ import { Player } from '@/types'
 import { Badge } from '@/components/ui/badge'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import { TableCell, TableRow } from '@/components/ui/table'
-
-/** Avatar background colour by position - matches the section accent colours in SquadView. */
-const POSITION_AVATAR: Record<string, string> = {
-  DEF: 'bg-rose-500',
-  MID: 'bg-amber-500',
-  RUC: 'bg-violet-500',
-  FWD: 'bg-emerald-600',
-  FLX: 'bg-sky-500',
-  BENCH: 'bg-slate-400',
-}
-
-function initials(name: string): string {
-  const parts = name.trim().split(/\s+/)
-  return ((parts[0]?.[0] || '') + (parts[parts.length - 1]?.[0] || '')).toUpperCase()
-}
-
-function opponentLine(player: Player): string {
-  const fixture = player.fixture
-
-  if (!fixture || !fixture.opponent || fixture.opponent === 'Unknown') return 'Bye / opponent unconfirmed'
-
-  const venuePart = fixture.venue ? ` · ${fixture.venue}` : ''
-  const homeAway = fixture.isHome === true ? 'H' : fixture.isHome === false ? 'A' : ''
-
-  return `vs ${fixture.opponent}${homeAway ? ` (${homeAway})` : ''}${venuePart}`
-}
+import { avatarColorFor } from '@/lib/positionTheme'
+import { initials, opponentLine } from '@/lib/playerDisplay'
 
 export function SquadRosterRow({ player }: { player: Player }) {
-  const avatarColor = POSITION_AVATAR[player.lineupPosition === 'BENCH' ? 'BENCH' : player.position] || 'bg-slate-400'
+  const avatarColor = avatarColorFor(player)
 
   return (
     <TableRow className={player.lineupPosition === 'BENCH' ? 'bg-muted/40' : undefined}>
