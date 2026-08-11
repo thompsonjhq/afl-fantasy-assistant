@@ -8,7 +8,10 @@ import { fetchMatchRefsForSeason } from '@/lib/scrapers/footywireAdvancedStats'
 // protection blocks Vercel's IPs, so the backfill/injury steps below just come back empty if this
 // is called against the deployed site (squad sync and model-fit don't touch footywire, so those
 // still work either way).
-export const maxDuration = 900
+// Capped at 300 - Vercel Hobby plan's serverless function limit (this only matters for the
+// deployed function's config; actually running this locally via `npm run dev` isn't bound by
+// it at all, and it's meant to run locally anyway per the note above).
+export const maxDuration = 300
 
 interface UpdateAllBody {
   seasons?: number[]
