@@ -21,6 +21,27 @@ const TEAM_ALIASES: Record<string, string[]> = {
   'Western Bulldogs': ['Western Bulldogs', 'Footscray'],
 }
 
+const TEAM_ABBREVIATIONS: Record<string, string> = {
+  Adelaide: 'ADE',
+  'Brisbane Lions': 'BRL',
+  Carlton: 'CAR',
+  Collingwood: 'COL',
+  Essendon: 'ESS',
+  Fremantle: 'FRE',
+  Geelong: 'GEE',
+  'Gold Coast': 'GCS',
+  'Greater Western Sydney': 'GWS',
+  Hawthorn: 'HAW',
+  Melbourne: 'MEL',
+  'North Melbourne': 'NTH',
+  'Port Adelaide': 'PTA',
+  Richmond: 'RIC',
+  'St Kilda': 'STK',
+  Sydney: 'SYD',
+  'West Coast': 'WCE',
+  'Western Bulldogs': 'WBD',
+}
+
 function cleanTeamName(team: string): string {
   return team.toLowerCase().replace(/[^a-z ]/g, '').replace(/\s+/g, ' ').trim()
 }
@@ -35,6 +56,12 @@ function normaliseTeamName(team: string): string {
   }
 
   return team
+}
+
+/** Short 3-letter code for a team name, for use in space-constrained UI (field view tiles). */
+export function teamAbbr(team: string): string {
+  const canonical = normaliseTeamName(team)
+  return TEAM_ABBREVIATIONS[canonical] || team.slice(0, 3).toUpperCase()
 }
 
 function sameTeam(a: string, b: string): boolean {

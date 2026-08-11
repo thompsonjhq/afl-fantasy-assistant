@@ -1,4 +1,5 @@
 import { Player } from '@/types'
+import { teamAbbr } from '@/lib/afl'
 
 export function initials(name: string): string {
   const parts = name.trim().split(/\s+/)
@@ -19,4 +20,15 @@ export function opponentLine(player: Player): string {
   const homeAway = fixture.isHome === true ? 'H' : fixture.isHome === false ? 'A' : ''
 
   return `vs ${fixture.opponent}${homeAway ? ` (${homeAway})` : ''}${venuePart}`
+}
+
+/** Compact "vs GEE (A)" form of the fixture, for space-constrained tiles. */
+export function opponentShort(player: Player): string {
+  const fixture = player.fixture
+
+  if (!fixture || !fixture.opponent || fixture.opponent === 'Unknown') return 'Bye'
+
+  const homeAway = fixture.isHome === true ? 'H' : fixture.isHome === false ? 'A' : ''
+
+  return `${teamAbbr(fixture.opponent)}${homeAway ? ` (${homeAway})` : ''}`
 }
