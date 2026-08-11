@@ -79,6 +79,45 @@ export async function getSquiggleFixtures(round: number, year: number): Promise<
   }
 }
 
+/**
+ * The lowest round number that still has an unfinished game, per Squiggle's own
+ * completion data - the authoritative "current round" rather than one inferred from
+ * whatever scores happen to be recorded locally (which lags behind for teams that
+ * play later in the round).
+ */
+export async function getCurrentRound(year: number): Promise<number | null> {
+  try {
+    const res = await fetch(
+      `https://api.squiggle.com.au/?q=games;year=${year}`,
+      {
+        headers: {
+          'User-Agent': 'afl-fantasy-assistant',
+        },
+        next: { revalidate: 60 * 60 },
+      }
+    )
+
+    if (!res.ok) {
+      throw new Error(`Squiggle API returned ${res.status}`)
+    }
+
+    const data = await res.json()
+    const games: SquiggleGame[] = Array.isArray(data.games) ? data.games : []
+    if (games.length === 0) return null
+
+    const incompleteRounds = games
+      .filter((game) => Number(game.complete) < 100)
+      .map((game) => game.round)
+
+    if (incompleteRounds.length > 0) return Math.min(...incompleteRounds)
+
+    return Math.max(...games.map((game) => game.round))
+  } catch (error) {
+    console.error('Failed to fetch Squiggle current round:', error)
+    return null
+  }
+}
+
 export function getFixtureForTeam(team: string, fixtures: SquiggleGame[]): SquiggleGame | undefined {
   return fixtures.find((game) => sameTeam(game.hteam, team) || sameTeam(game.ateam, team))
 }

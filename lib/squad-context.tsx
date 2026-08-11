@@ -69,8 +69,10 @@ export function mapRow(row: PlayerRow): Player {
   }
 }
 
-/** No hardcoded "current round" exists anywhere - derive it from the latest round any squad
- * player actually has a recorded score for, since that's real data we already have on hand. */
+/** Fallback only - used if the live /api/current-round lookup fails. Derives a round from
+ * the latest round any squad player actually has a recorded score for. This can overshoot
+ * for teams that play later in the round than others, which is why it's not the primary
+ * source of truth. */
 function deriveCurrentRound(squad: Player[]): number {
   const maxRecordedRound = squad.reduce((max, player) => {
     const playerMax = (player.scoreRounds || []).reduce((m, r) => Math.max(m, r), 0)
@@ -78,6 +80,22 @@ function deriveCurrentRound(squad: Player[]): number {
   }, 0)
 
   return maxRecordedRound > 0 ? maxRecordedRound + 1 : 1
+}
+
+/** Authoritative "current round" from Squiggle's own completion data, via /api/current-round.
+ * Falls back to deriveCurrentRound(squad) if that lookup fails. */
+async function resolveCurrentRound(squad: Player[]): Promise<number> {
+  try {
+    const res = await fetch('/api/current-round')
+    const data = await res.json()
+    if (res.ok && data.success && typeof data.round === 'number') {
+      return data.round
+    }
+  } catch (error) {
+    console.error('Failed to fetch current round:', error)
+  }
+
+  return deriveCurrentRound(squad)
 }
 
 export function SquadProvider({ children }: { children: ReactNode }) {
@@ -142,9 +160,9 @@ export function SquadProvider({ children }: { children: ReactNode }) {
     const squad = await fetchSquadRows()
 
     if (squad) {
-      const derivedRound = deriveCurrentRound(squad)
-      setRoundState(derivedRound)
-      await refreshProjections(squad, derivedRound)
+      const currentRound = await resolveCurrentRound(squad)
+      setRoundState(currentRound)
+      await refreshProjections(squad, currentRound)
     }
 
     setLoading(false)
