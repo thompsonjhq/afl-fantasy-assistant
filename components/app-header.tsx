@@ -1,7 +1,9 @@
 'use client'
 
 import { usePathname } from 'next/navigation'
-import { RefreshCw } from 'lucide-react'
+import { useEffect, useState } from 'react'
+import { useTheme } from 'next-themes'
+import { Moon, RefreshCw, Sun } from 'lucide-react'
 import { SidebarTrigger } from '@/components/ui/sidebar'
 import { Separator } from '@/components/ui/separator'
 import { Button } from '@/components/ui/button'
@@ -13,8 +15,36 @@ const PAGE_TITLES: Record<string, string> = {
   '/squad': 'Squad',
   '/projections': 'Projections',
   '/free-agents': 'Free Agents',
+  '/compare': 'Compare',
+  '/dvp': 'DVP Stats',
+  '/team-news': 'Team News',
   '/insights': 'AI Insights',
+  '/model-accuracy': 'Model Accuracy',
   '/data': 'Data',
+}
+
+function ThemeToggle() {
+  const { resolvedTheme, setTheme } = useTheme()
+  const [mounted, setMounted] = useState(false)
+
+  useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setMounted(true)
+  }, [])
+
+  if (!mounted) return <div className="h-8 w-8" />
+
+  return (
+    <Button
+      onClick={() => setTheme(resolvedTheme === 'dark' ? 'light' : 'dark')}
+      variant="ghost"
+      size="icon"
+      className="h-8 w-8"
+      aria-label="Toggle dark mode"
+    >
+      {resolvedTheme === 'dark' ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
+    </Button>
+  )
 }
 
 export function AppHeader() {
@@ -51,6 +81,8 @@ export function AppHeader() {
         <RefreshCw className={syncing ? 'h-3.5 w-3.5 animate-spin' : 'h-3.5 w-3.5'} />
         {syncing ? 'Syncing…' : 'Sync'}
       </Button>
+
+      <ThemeToggle />
     </header>
   )
 }

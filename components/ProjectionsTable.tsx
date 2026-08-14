@@ -1,6 +1,7 @@
 'use client'
 
 import { Fragment, useState } from 'react'
+import Link from 'next/link'
 import { ChevronDown, ChevronRight } from 'lucide-react'
 import { Player } from '@/types'
 import { Badge } from '@/components/ui/badge'
@@ -9,8 +10,12 @@ import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { difficultyBadgeClass } from '@/lib/difficultyTheme'
 import { opponentLine } from '@/lib/playerDisplay'
 import { getConsistencyScore, getFormLabel } from '@/lib/projections'
+import { computeTiers } from '@/lib/tiers'
 import { ProjectionFactorList } from '@/components/ProjectionFactorList'
 import { ScoreBreakdownChart } from '@/components/ScoreBreakdownChart'
+import { ColumnPicker } from '@/components/ColumnPicker'
+import { DEFAULT_VISIBLE_COLUMNS, EXTRA_COLUMNS, ExtraColumnKey, extraColumnValue } from '@/lib/extraPlayerColumns'
+import { useColumnPreferences } from '@/lib/useColumnPreferences'
 
 interface ProjectionsTableProps {
   players: Player[]
@@ -78,23 +83,34 @@ function RangeBar({ low, score, high }: { low?: number; score?: number; high?: n
   )
 }
 
+const BASE_COLUMN_COUNT = 8
+
 export default function ProjectionsTable({ players }: ProjectionsTableProps) {
   const [filter, setFilter] = useState<PositionFilter>('ALL')
   const [expandedId, setExpandedId] = useState<string | null>(null)
+  const { visible: visibleColumns, toggle: toggleColumn } = useColumnPreferences<ExtraColumnKey>(
+    'projections-table-columns',
+    DEFAULT_VISIBLE_COLUMNS
+  )
 
   const sorted = [...players]
     .filter((player) => matchesFilter(player, filter))
     .sort((a, b) => (b.projectedScore || 0) - (a.projectedScore || 0))
 
+  const tierByPlayer = computeTiers(sorted, (player) => player.projectedScore || player.avgScore || 0)
+
   return (
     <div className="flex flex-col gap-3">
-      <Tabs value={filter} onValueChange={(value) => setFilter(value as PositionFilter)}>
-        <TabsList>
-          {POSITION_FILTERS.map((option) => (
-            <TabsTrigger key={option} value={option}>{option}</TabsTrigger>
-          ))}
-        </TabsList>
-      </Tabs>
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <Tabs value={filter} onValueChange={(value) => setFilter(value as PositionFilter)}>
+          <TabsList>
+            {POSITION_FILTERS.map((option) => (
+              <TabsTrigger key={option} value={option}>{option}</TabsTrigger>
+            ))}
+          </TabsList>
+        </Tabs>
+        <ColumnPicker visible={visibleColumns} onToggle={toggleColumn} />
+      </div>
 
       <Table>
         <TableHeader>
@@ -107,14 +123,28 @@ export default function ProjectionsTable({ players }: ProjectionsTableProps) {
             <TableHead>Form</TableHead>
             <TableHead className="text-right">Consistency</TableHead>
             <TableHead className="text-right">Confidence</TableHead>
+            {EXTRA_COLUMNS.filter((column) => visibleColumns.includes(column.key)).map((column) => (
+              <TableHead key={column.key} className={column.align === 'right' ? 'text-right' : undefined}>
+                {column.label}
+              </TableHead>
+            ))}
           </TableRow>
         </TableHeader>
         <TableBody>
-          {sorted.map((player) => {
+          {sorted.map((player, index) => {
             const expanded = expandedId === player.id
+            const tier = tierByPlayer.get(player)
+            const showTierDivider = index > 0 && tier !== tierByPlayer.get(sorted[index - 1])
 
             return (
               <Fragment key={player.id}>
+                {showTierDivider && (
+                  <TableRow className="border-none hover:bg-transparent">
+                    <TableCell colSpan={BASE_COLUMN_COUNT + visibleColumns.length} className="bg-muted/50 py-1 text-xs font-medium text-muted-foreground">
+                      Tier {tier}
+                    </TableCell>
+                  </TableRow>
+                )}
                 <TableRow
                   className="cursor-pointer"
                   onClick={() => setExpandedId(expanded ? null : player.id)}
@@ -124,7 +154,13 @@ export default function ProjectionsTable({ players }: ProjectionsTableProps) {
                   </TableCell>
                   <TableCell>
                     <div className="flex items-center gap-1.5">
-                      <span className="font-medium text-foreground">{player.name}</span>
+                      <Link
+                        href={`/players/${player.id}`}
+                        onClick={(event) => event.stopPropagation()}
+                        className="font-medium text-foreground hover:underline"
+                      >
+                        {player.name}
+                      </Link>
                       <Badge variant="outline" className="h-5 px-1.5 text-[10px]">
                         {player.position}{player.position2 ? `/${player.position2}` : ''}
                       </Badge>
@@ -153,11 +189,16 @@ export default function ProjectionsTable({ players }: ProjectionsTableProps) {
                   <TableCell className="text-right">
                     <Badge variant="outline">{player.projectionConfidence || 'Medium'}</Badge>
                   </TableCell>
+                  {EXTRA_COLUMNS.filter((column) => visibleColumns.includes(column.key)).map((column) => (
+                    <TableCell key={column.key} className={column.align === 'right' ? 'text-right' : undefined}>
+                      {extraColumnValue(player, column.key)}
+                    </TableCell>
+                  ))}
                 </TableRow>
 
                 {expanded && (
                   <TableRow className="bg-muted/30">
-                    <TableCell colSpan={8}>
+                    <TableCell colSpan={BASE_COLUMN_COUNT + visibleColumns.length}>
                       <div className="mb-2 text-xs text-muted-foreground">{opponentLine(player)}</div>
                       <ProjectionFactorList factors={player.projectionFactors} playerId={player.id} />
                       <div className="mt-3 border-t border-border pt-3">

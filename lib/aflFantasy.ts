@@ -212,7 +212,7 @@ export function mapAflFantasyPlayer(
     aflFantasyId: id,
     squadId: player.squadId,
     status: player.status,
-    rosteredPercentage: player.rosteredPercentage,
+    ownershipPct: player.rosteredPercentage?.redraft ?? player.rosteredPercentage?.keeper ?? player.rosteredPercentage?.dynasty,
     startingPercentage: player.startingPercentage,
   }
 }

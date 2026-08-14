@@ -19,6 +19,25 @@ export interface HistoricalProjectionInput {
   opponentVenuePointsVsExpected?: number
 }
 
+/** Tunable "Proj Studio" weights (see lib/projectionSettings.ts). Every default is 1.0, and
+ * every formula below that uses one is written so multiplying/dividing by 1.0 is a pure no-op -
+ * an unmodified settings row reproduces today's exact hardcoded output, not an approximation. */
+export interface ProjectionSettings {
+  formSensitivity: number
+  opponentSensitivity: number
+  matchupWeight: number
+  roleSecurityWeight: number
+  injuryCaution: number
+}
+
+export const DEFAULT_PROJECTION_SETTINGS: ProjectionSettings = {
+  formSensitivity: 1,
+  opponentSensitivity: 1,
+  matchupWeight: 1,
+  roleSecurityWeight: 1,
+  injuryCaution: 1,
+}
+
 export interface RoleSecurityProjectionInput {
   recentTogPct?: number
   seasonTogPct?: number
@@ -105,18 +124,20 @@ function getRecentAverage(player: Player): number {
   return 0
 }
 
-function getFormMultiplier(player: Player, baseAverage: number): number {
+function getFormMultiplier(player: Player, baseAverage: number, sensitivity: number): number {
   if (baseAverage <= 0) return 1
 
   const recentAverage = getRecentAverage(player)
   if (recentAverage <= 0) return 1
 
-  return clamp(recentAverage / baseAverage, 0.82, 1.18)
+  // sensitivity=1 reproduces the original fixed 0.82-1.18 clamp exactly; higher widens it (more
+  // reactive to recent form), lower narrows it (steadier, closer to season average).
+  return clamp(recentAverage / baseAverage, 1 - 0.18 * sensitivity, 1 + 0.18 * sensitivity)
 }
 
-function getOpponentMultiplier(baseAverage: number, opponentAverage?: number, fixtureDifficulty?: string): number {
+function getOpponentMultiplier(baseAverage: number, sensitivity: number, opponentAverage?: number, fixtureDifficulty?: string): number {
   if (baseAverage > 0 && opponentAverage && opponentAverage > 0) {
-    return clamp(opponentAverage / baseAverage, 0.9, 1.1)
+    return clamp(opponentAverage / baseAverage, 1 - 0.1 * sensitivity, 1 + 0.1 * sensitivity)
   }
 
   switch (fixtureDifficulty) {
@@ -160,9 +181,9 @@ function getOpponentVenueAdjustment(historical?: HistoricalProjectionInput): num
   return clamp(pointsVsExpected * 0.7, -6, 6)
 }
 
-function getMatchupAdjustment(matchup?: MatchupProjectionInput | null): number {
+function getMatchupAdjustment(matchup?: MatchupProjectionInput | null, weight = 1): number {
   if (!matchup || matchup.games < 4) return 0
-  return clamp(matchup.pointsConcededVsExpected, -12, 12)
+  return clamp(matchup.pointsConcededVsExpected, -12, 12) * weight
 }
 
 /** Nudges the projection from a player's own recent-vs-season TOG%/Centre Clearances trend
@@ -170,27 +191,33 @@ function getMatchupAdjustment(matchup?: MatchupProjectionInput | null): number {
  * a handful of games in the sample (enforced by the caller) so a single blowout game doesn't
  * swing it. Coefficients are deliberately small: this is a nudge on top of form/opponent, not
  * a replacement for them. */
-function getRoleSecurityAdjustment(input?: RoleSecurityProjectionInput): number {
+function getRoleSecurityAdjustment(input?: RoleSecurityProjectionInput, weight = 1): number {
   if (!input) return 0
 
   const togDelta = (input.recentTogPct ?? input.seasonTogPct ?? 0) - (input.seasonTogPct ?? 0)
   const cclDelta = (input.recentCentreClearances ?? input.seasonCentreClearances ?? 0) - (input.seasonCentreClearances ?? 0)
 
-  return clamp(togDelta * 0.15 + cclDelta * 1.2, -6, 6)
+  return clamp(togDelta * 0.15 + cclDelta * 1.2, -6, 6) * weight
 }
 
-/** Maps a real scraped injury/return-timeframe note (from footywire's injury list) to a severity-aware penalty multiplier, replacing the old flat 0.25 constant used when all we had was a boolean flag. */
-function getInjuryPenaltyMultiplier(injuryNote?: string): number {
-  if (!injuryNote) return 0.25
+/** Maps a real scraped injury/return-timeframe note (from footywire's injury list) to a severity-aware penalty multiplier, replacing the old flat 0.25 constant used when all we had was a boolean flag.
+ * `caution=1` reproduces the original fixed values exactly; higher makes every injury cut deeper
+ * (more conservative), lower softens the cut. */
+function getInjuryPenaltyMultiplier(injuryNote: string | undefined, caution: number): number {
+  const base = (() => {
+    if (!injuryNote) return 0.25
 
-  const note = injuryNote.toLowerCase()
+    const note = injuryNote.toLowerCase()
 
-  if (note.includes('season')) return 0
-  if (note.includes('test')) return 0.85
-  if (/\d+\s*-?\s*\d*\s*weeks?/.test(note)) return 0.05
-  if (/round\s+\d+/.test(note)) return 0.05
+    if (note.includes('season')) return 0
+    if (note.includes('test')) return 0.85
+    if (/\d+\s*-?\s*\d*\s*weeks?/.test(note)) return 0.05
+    if (/round\s+\d+/.test(note)) return 0.05
 
-  return 0.25
+    return 0.25
+  })()
+
+  return caution > 0 ? clamp(base / caution, 0, 1) : base
 }
 
 function getConfidence(player: Player, factors: ProjectionFactor[], volatility: number): ProjectionConfidence {
@@ -272,19 +299,20 @@ export function calculatePlayerProjection(
   historical?: HistoricalProjectionInput,
   matchup?: MatchupProjectionInput | null,
   fittedModel?: FittedModel,
-  roleSecurity?: RoleSecurityProjectionInput
+  roleSecurity?: RoleSecurityProjectionInput,
+  settings: ProjectionSettings = DEFAULT_PROJECTION_SETTINGS
 ): PlayerProjection {
   const baseAverage = getBaseAverage(player, historical)
   const recentAverage = getRecentAverage(player)
-  const formMultiplier = getFormMultiplier(player, baseAverage)
-  const opponentMultiplier = getOpponentMultiplier(baseAverage, historical?.opponentAverage, fixture?.difficulty)
+  const formMultiplier = getFormMultiplier(player, baseAverage, settings.formSensitivity)
+  const opponentMultiplier = getOpponentMultiplier(baseAverage, settings.opponentSensitivity, historical?.opponentAverage, fixture?.difficulty)
 
-  const matchupAdjustment = getMatchupAdjustment(matchup)
+  const matchupAdjustment = getMatchupAdjustment(matchup, settings.matchupWeight)
   const homeAwayAdjustment = getHomeAwayAdjustment(fixture)
   const playerVenueAdjustment = getPlayerVenueAdjustment(historical)
   const opponentVenueAdjustment = getOpponentVenueAdjustment(historical)
-  const roleSecurityAdjustment = getRoleSecurityAdjustment(roleSecurity)
-  const injuryMultiplier = player.injured ? getInjuryPenaltyMultiplier(player.injuryNote) : 1
+  const roleSecurityAdjustment = getRoleSecurityAdjustment(roleSecurity, settings.roleSecurityWeight)
+  const injuryMultiplier = player.injured ? getInjuryPenaltyMultiplier(player.injuryNote, settings.injuryCaution) : 1
 
   const afterForm = baseAverage * formMultiplier
   const afterOpponent = afterForm * opponentMultiplier
@@ -469,7 +497,8 @@ export function calculateTeamProjections<T extends Player>(
   historicalByPlayerId: Record<string, HistoricalProjectionInput | undefined> = {},
   matchupByPlayerId: Record<string, MatchupProjectionInput | null | undefined> = {},
   fittedModel?: FittedModel,
-  roleSecurityByPlayerId: Record<string, RoleSecurityProjectionInput | undefined> = {}
+  roleSecurityByPlayerId: Record<string, RoleSecurityProjectionInput | undefined> = {},
+  settings: ProjectionSettings = DEFAULT_PROJECTION_SETTINGS
 ) {
   return players
     .map((player) => ({
@@ -480,7 +509,8 @@ export function calculateTeamProjections<T extends Player>(
         historicalByPlayerId[player.id],
         matchupByPlayerId[player.id],
         fittedModel,
-        roleSecurityByPlayerId[player.id]
+        roleSecurityByPlayerId[player.id],
+        settings
       ),
       fixture: fixturesByPlayerId[player.id],
       matchup: matchupByPlayerId[player.id],

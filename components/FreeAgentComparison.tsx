@@ -9,6 +9,10 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import FreeAgentComparisonTable from '@/components/FreeAgentComparisonTable'
+import { ColumnPicker } from '@/components/ColumnPicker'
+import { DEFAULT_VISIBLE_COLUMNS, ExtraColumnKey } from '@/lib/extraPlayerColumns'
+import { useColumnPreferences } from '@/lib/useColumnPreferences'
+import { computeTiers } from '@/lib/tiers'
 
 interface FreeAgentComparisonProps {
   players: Player[]
@@ -40,6 +44,10 @@ export default function FreeAgentComparison({ players, round }: FreeAgentCompari
   const [positionFilter, setPositionFilter] = useState<PositionFilter>('ALL')
   const [search, setSearch] = useState('')
   const [sortBy, setSortBy] = useState<SortBy>('netGain')
+  const { visible: visibleColumns, toggle: toggleColumn } = useColumnPreferences<ExtraColumnKey>(
+    'free-agents-table-columns',
+    DEFAULT_VISIBLE_COLUMNS
+  )
 
   async function loadComparisons() {
     setLoading(true)
@@ -77,6 +85,10 @@ export default function FreeAgentComparison({ players, round }: FreeAgentCompari
       return c.player.name.toLowerCase().includes(needle) || c.player.team.toLowerCase().includes(needle)
     })
     .sort((a, b) => sortValue(b, sortBy) - sortValue(a, sortBy))
+
+  // Computed on the same metric the list is currently sorted by, so tier boundaries always
+  // line up with what's on screen regardless of which sort option is active.
+  const tierByComparison = computeTiers(filtered, (comparison) => sortValue(comparison, sortBy))
 
   return (
     <Card>
@@ -122,10 +134,11 @@ export default function FreeAgentComparison({ players, round }: FreeAgentCompari
                     ))}
                   </TabsList>
                 </Tabs>
+                <ColumnPicker visible={visibleColumns} onToggle={toggleColumn} />
               </div>
             </div>
 
-            <FreeAgentComparisonTable comparisons={filtered} />
+            <FreeAgentComparisonTable comparisons={filtered} visibleColumns={visibleColumns} tierByComparison={tierByComparison} />
           </>
         )}
       </CardContent>

@@ -47,6 +47,8 @@ export async function POST() {
           low_score: player.lowScore,
           games_played: player.gamesPlayed,
           afl_fantasy_id: player.aflFantasyId,
+          rostered_percentage: player.ownershipPct,
+          starting_percentage: player.startingPercentage,
         })
 
       if (error) {

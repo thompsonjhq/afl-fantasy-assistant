@@ -9,6 +9,8 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Skeleton } from '@/components/ui/skeleton'
 import { Button } from '@/components/ui/button'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
+import { ProjStudioPanel } from '@/components/ProjStudioPanel'
 
 export default function ModelAccuracyPage() {
   const { players, round, loading: squadLoading } = useSquad()
@@ -82,47 +84,60 @@ export default function ModelAccuracyPage() {
 
       {error && <div className="rounded-lg border border-destructive/30 bg-destructive/10 p-3 text-sm text-destructive">{error}</div>}
 
-      <Card>
-        <CardHeader className="flex flex-row items-center justify-between">
-          <CardTitle>Accuracy by model</CardTitle>
-          <Button onClick={loadSummaries} disabled={loading} variant="ghost" size="sm" className="gap-1.5">
-            <RefreshCw className={`h-3.5 w-3.5 ${loading ? 'animate-spin' : ''}`} />
-            Refresh
-          </Button>
-        </CardHeader>
-        <CardContent>
-          {loading ? (
-            <Skeleton className="h-32" />
-          ) : summaries.length === 0 ? (
-            <p className="text-sm text-muted-foreground">
-              No completed rounds with a snapshot yet. Snapshot the current round above, then check back once it&apos;s final.
-            </p>
-          ) : (
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Model</TableHead>
-                  <TableHead className="text-right">Rounds scored</TableHead>
-                  <TableHead className="text-right">MAE</TableHead>
-                  <TableHead className="text-right">Bias</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {summaries.map((summary) => (
-                  <TableRow key={summary.modelVersion}>
-                    <TableCell className="font-medium capitalize text-foreground">{summary.modelVersion}</TableCell>
-                    <TableCell className="text-right text-muted-foreground">{summary.games}</TableCell>
-                    <TableCell className="text-right">{summary.mae}</TableCell>
-                    <TableCell className={`text-right ${summary.bias > 0 ? 'text-emerald-600' : summary.bias < 0 ? 'text-destructive' : ''}`}>
-                      {summary.bias > 0 ? '+' : ''}{summary.bias}
-                    </TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
-          )}
-        </CardContent>
-      </Card>
+      <Tabs defaultValue="accuracy">
+        <TabsList>
+          <TabsTrigger value="accuracy">Accuracy</TabsTrigger>
+          <TabsTrigger value="proj-studio">Proj Studio</TabsTrigger>
+        </TabsList>
+
+        <TabsContent value="accuracy" className="mt-3">
+          <Card>
+            <CardHeader className="flex flex-row items-center justify-between">
+              <CardTitle>Accuracy by model</CardTitle>
+              <Button onClick={loadSummaries} disabled={loading} variant="ghost" size="sm" className="gap-1.5">
+                <RefreshCw className={`h-3.5 w-3.5 ${loading ? 'animate-spin' : ''}`} />
+                Refresh
+              </Button>
+            </CardHeader>
+            <CardContent>
+              {loading ? (
+                <Skeleton className="h-32" />
+              ) : summaries.length === 0 ? (
+                <p className="text-sm text-muted-foreground">
+                  No completed rounds with a snapshot yet. Snapshot the current round above, then check back once it&apos;s final.
+                </p>
+              ) : (
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Model</TableHead>
+                      <TableHead className="text-right">Rounds scored</TableHead>
+                      <TableHead className="text-right">MAE</TableHead>
+                      <TableHead className="text-right">Bias</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {summaries.map((summary) => (
+                      <TableRow key={summary.modelVersion}>
+                        <TableCell className="font-medium capitalize text-foreground">{summary.modelVersion}</TableCell>
+                        <TableCell className="text-right text-muted-foreground">{summary.games}</TableCell>
+                        <TableCell className="text-right">{summary.mae}</TableCell>
+                        <TableCell className={`text-right ${summary.bias > 0 ? 'text-emerald-600' : summary.bias < 0 ? 'text-destructive' : ''}`}>
+                          {summary.bias > 0 ? '+' : ''}{summary.bias}
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              )}
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        <TabsContent value="proj-studio" className="mt-3">
+          <ProjStudioPanel />
+        </TabsContent>
+      </Tabs>
     </div>
   )
 }

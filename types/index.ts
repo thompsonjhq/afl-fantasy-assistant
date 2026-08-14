@@ -59,6 +59,7 @@ export interface Player extends PlayerProjectionFields {
   status?: string
   ownedByTeamId?: number
   ownedByTeamName?: string
+  ownershipPct?: number
   fixture?: FixtureContext
 }
 

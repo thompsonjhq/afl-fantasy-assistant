@@ -13,6 +13,7 @@ import {
   Newspaper,
   ShieldAlert,
   Target,
+  GitCompare,
 } from 'lucide-react'
 import {
   Sidebar,
@@ -30,6 +31,7 @@ const NAV_ITEMS = [
   { href: '/squad', label: 'Squad', icon: Users },
   { href: '/projections', label: 'Projections', icon: BarChart3 },
   { href: '/free-agents', label: 'Free Agents', icon: UserPlus },
+  { href: '/compare', label: 'Compare', icon: GitCompare },
   { href: '/dvp', label: 'DVP Stats', icon: Target },
   { href: '/team-news', label: 'Team News', icon: Newspaper },
   { href: '/insights', label: 'AI Insights', icon: Sparkles },

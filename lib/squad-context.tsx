@@ -42,6 +42,7 @@ export interface PlayerRow {
   high_score: number | null
   low_score: number | null
   games_played: number | null
+  rostered_percentage: number | null
 }
 
 export function mapRow(row: PlayerRow): Player {
@@ -66,6 +67,7 @@ export function mapRow(row: PlayerRow): Player {
     highScore: row.high_score || undefined,
     lowScore: row.low_score || undefined,
     gamesPlayed: row.games_played || undefined,
+    ownershipPct: row.rostered_percentage ?? undefined,
   }
 }
 

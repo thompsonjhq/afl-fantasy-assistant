@@ -1,5 +1,6 @@
 'use client'
 
+import Link from 'next/link'
 import { AlertCircle } from 'lucide-react'
 import { Player } from '@/types'
 import { Badge } from '@/components/ui/badge'
@@ -33,7 +34,9 @@ export function SquadRosterRow({ player }: { player: Player }) {
             <div className="flex items-center gap-1.5">
               {player.isCaptain && <Badge className="h-5 bg-primary px-1.5 text-[10px] text-primary-foreground">C</Badge>}
               {player.isViceCaptain && <Badge variant="secondary" className="h-5 px-1.5 text-[10px]">VC</Badge>}
-              <span className="truncate font-medium text-foreground">{player.name}</span>
+              <Link href={`/players/${player.id}`} className="truncate font-medium text-foreground hover:underline">
+                {player.name}
+              </Link>
               <Badge variant="outline" className="h-5 px-1.5 text-[10px]">{player.position}{player.position2 ? `/${player.position2}` : ''}</Badge>
             </div>
             <div className="truncate text-xs text-muted-foreground">{opponentLine(player)}</div>

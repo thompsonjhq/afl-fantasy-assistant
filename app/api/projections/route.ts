@@ -6,6 +6,7 @@ import { getMatchupsForPlayers } from '@/lib/matchups'
 import { getVenueProfilesForPlayers } from '@/lib/venues'
 import { calculateTeamProjections, HistoricalProjectionInput, RoleSecurityProjectionInput } from '@/lib/projections'
 import { getRoleSecurityInputsForPlayers } from '@/lib/roleSecurity'
+import { getProjectionSettings } from '@/lib/projectionSettings'
 import { buildFreeAgentComparisons } from '@/lib/freeAgents'
 import { getLatestFittedModel } from '@/lib/model'
 import { Player } from '@/types'
@@ -109,13 +110,16 @@ async function projectPlayers(players: Player[], round: number) {
     players.map((player) => [player.id, roleSecurityByPlayerName[player.name]])
   )
 
+  const settings = await getProjectionSettings()
+
   const projectedPlayers = calculateTeamProjections(
     players,
     fixturesByPlayerId,
     historicalWithVenue,
     matchupByPlayerId,
     fittedModel,
-    roleSecurityByPlayerId
+    roleSecurityByPlayerId,
+    settings
   )
 
   return {
