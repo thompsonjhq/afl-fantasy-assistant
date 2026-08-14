@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { getFixtureContext, getSquiggleFixtures } from '@/lib/afl'
+import { getFixtureContext, getFixtureStripsForTeams, getSquiggleFixtures } from '@/lib/afl'
 import { fetchFreeAgentsWithStats } from '@/lib/aflFantasy'
 import { CachedPlayerHistoricalStats, getHistoricalStatsForPlayers } from '@/lib/aflTables'
 import { getMatchupsForPlayers } from '@/lib/matchups'
@@ -122,10 +122,21 @@ async function projectPlayers(players: Player[], round: number) {
     settings
   )
 
+  const fixtureStripsByTeam = await getFixtureStripsForTeams(
+    players.map((player) => player.team),
+    asOfRound,
+    CURRENT_YEAR
+  )
+
+  const projectedPlayersWithFixtureStrip = projectedPlayers.map((player) => ({
+    ...player,
+    fixtureStrip: fixtureStripsByTeam[player.team],
+  }))
+
   return {
     asOfRound,
     fixturesByPlayerId,
-    projectedPlayers,
+    projectedPlayers: projectedPlayersWithFixtureStrip,
   }
 }
 

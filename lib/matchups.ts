@@ -66,8 +66,10 @@ function round1(value: number): number {
   return Math.round(value * 10) / 10
 }
 
-function cleanTeamName(team: string): string {
-  return team.toLowerCase().replace(/[^a-z ]/g, '').replace(/\s+/g, ' ').trim()
+/** Same null-safety fix as lib/afl.ts's cleanTeamName - Squiggle can return placeholder fixture
+ * rows with a null hteam/ateam for not-yet-scheduled rounds. */
+function cleanTeamName(team: string | null | undefined): string {
+  return (team || '').toLowerCase().replace(/[^a-z ]/g, '').replace(/\s+/g, ' ').trim()
 }
 
 export function normaliseTeamName(team: string): string {

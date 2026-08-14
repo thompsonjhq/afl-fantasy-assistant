@@ -24,3 +24,26 @@ export function computeTiers<T>(sortedDesc: T[], scoreOf: (item: T) => number): 
 
   return tierByItem
 }
+
+export interface TierGrade {
+  label: string
+  tone: 'positive' | 'negative' | 'warning' | 'neutral'
+}
+
+const TIER_GRADES: TierGrade[] = [
+  { label: 'A+', tone: 'positive' },
+  { label: 'A', tone: 'positive' },
+  { label: 'B+', tone: 'neutral' },
+  { label: 'B', tone: 'neutral' },
+  { label: 'C+', tone: 'warning' },
+  { label: 'C', tone: 'warning' },
+  { label: 'D', tone: 'negative' },
+]
+
+/** Maps a 1-indexed tier (see computeTiers) to a single-letter grade, the same at-a-glance
+ * quality signal Smart Draft Board shows next to the player name. Tiers past the lookup table
+ * all collapse to the lowest grade rather than throwing - a squad with more gap-detected tiers
+ * than grades just bottoms out at D, it doesn't crash. */
+export function gradeForTier(tier: number): TierGrade {
+  return TIER_GRADES[Math.min(tier - 1, TIER_GRADES.length - 1)] ?? TIER_GRADES[TIER_GRADES.length - 1]
+}

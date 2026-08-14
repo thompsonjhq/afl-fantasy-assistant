@@ -1,14 +1,17 @@
 /** Badge colour for a fixture's opponent difficulty ('Easy'/'Medium'/'Hard'/'Unknown'),
- * shared between the Dashboard and Projections tables. */
+ * shared between the Dashboard and Projections tables. Uses the same positive/negative/warning
+ * status tokens every other badge in the app now draws from (see app/globals.css), rather than
+ * a one-off emerald/rose/amber palette - the same "soft tint" shape (bg at 10%, text at full
+ * strength, border at 30%) as Smart Draft Board's badges. */
 export function difficultyBadgeClass(difficulty: string | undefined): string {
   switch (difficulty) {
     case 'Easy':
-      return 'border-emerald-200 bg-emerald-50 text-emerald-700 dark:border-emerald-800 dark:bg-emerald-950 dark:text-emerald-400'
+      return 'rounded border-positive/30 bg-positive/10 text-positive'
     case 'Hard':
-      return 'border-rose-200 bg-rose-50 text-rose-700 dark:border-rose-800 dark:bg-rose-950 dark:text-rose-400'
+      return 'rounded border-negative/30 bg-negative/10 text-negative'
     case 'Medium':
-      return 'border-amber-200 bg-amber-50 text-amber-700 dark:border-amber-800 dark:bg-amber-950 dark:text-amber-400'
+      return 'rounded border-warning/30 bg-warning/10 text-warning'
     default:
-      return 'border-border bg-muted text-muted-foreground'
+      return 'rounded border-border bg-muted text-muted-foreground'
   }
 }

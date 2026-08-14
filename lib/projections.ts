@@ -538,6 +538,23 @@ export function getConsistencyScore(factors?: ProjectionFactor[]): number | null
   return Math.round(100 - ((volatility - 8) / (26 - 8)) * 100)
 }
 
+const TREND_THRESHOLD = 4
+
+/** Short-vs-medium-term momentum: last 3 games against last 5, not against the season baseline
+ * (that comparison is what the existing Hot/Cold Form label already does). A player can be
+ * "Steady" on Form (close to their season average) while still trending Up or Down within that -
+ * this is a genuinely different signal, not a re-skin of Form. */
+export function getTrendLabel(player: Player): 'Up' | 'Down' | 'Flat' | null {
+  const last3 = safeNumber(player.last3Avg)
+  const last5 = safeNumber(player.last5Avg)
+  if (last3 <= 0 || last5 <= 0) return null
+
+  const diff = last3 - last5
+  if (diff >= TREND_THRESHOLD) return 'Up'
+  if (diff <= -TREND_THRESHOLD) return 'Down'
+  return 'Flat'
+}
+
 export function isPositionEligible(player: Player, position: string): boolean {
   if (position === 'FLX' || position === 'BENCH') return true
   return player.position === position || player.position2 === position

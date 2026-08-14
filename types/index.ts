@@ -61,6 +61,7 @@ export interface Player extends PlayerProjectionFields {
   ownedByTeamName?: string
   ownershipPct?: number
   fixture?: FixtureContext
+  fixtureStrip?: FixtureStripEntry[]
 }
 
 export interface PlayerWithStats extends Player {
@@ -96,6 +97,15 @@ export interface FixtureContext {
   venue?: string
   isHome?: boolean
   date?: string
+}
+
+/** One round in a multi-round look-ahead ("Fixtures" strip) - opponent 'Unknown' means no
+ * fixture found for that round (bye, or past the end of the fixture list). */
+export interface FixtureStripEntry {
+  round: number
+  opponent: string
+  isHome?: boolean
+  difficulty: string
 }
 
 export interface AnalysisResult {

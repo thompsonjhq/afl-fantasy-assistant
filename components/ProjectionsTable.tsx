@@ -9,8 +9,10 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { difficultyBadgeClass } from '@/lib/difficultyTheme'
 import { opponentLine } from '@/lib/playerDisplay'
-import { getConsistencyScore, getFormLabel } from '@/lib/projections'
-import { computeTiers } from '@/lib/tiers'
+import { teamAbbr } from '@/lib/afl'
+import { getConsistencyScore, getFormLabel, getTrendLabel } from '@/lib/projections'
+import { computeTiers, gradeForTier } from '@/lib/tiers'
+import { getPlayerFlags } from '@/lib/flags'
 import { ProjectionFactorList } from '@/components/ProjectionFactorList'
 import { ScoreBreakdownChart } from '@/components/ScoreBreakdownChart'
 import { ColumnPicker } from '@/components/ColumnPicker'
@@ -32,9 +34,9 @@ function matchesFilter(player: Player, filter: PositionFilter): boolean {
 }
 
 const FORM_BADGE_CLASS: Record<'Hot' | 'Cold' | 'Steady', string> = {
-  Hot: 'border-emerald-600/40 bg-emerald-600/10 text-emerald-700 dark:text-emerald-400',
-  Cold: 'border-sky-600/40 bg-sky-600/10 text-sky-700 dark:text-sky-400',
-  Steady: '',
+  Hot: 'rounded border-positive/30 bg-positive/10 text-positive',
+  Cold: 'rounded border-negative/30 bg-negative/10 text-negative',
+  Steady: 'rounded',
 }
 
 function FormBadge({ factors }: { factors?: Player['projectionFactors'] }) {
@@ -42,9 +44,114 @@ function FormBadge({ factors }: { factors?: Player['projectionFactors'] }) {
   if (!form) return <span className="text-muted-foreground">-</span>
 
   return (
-    <Badge variant="outline" className={FORM_BADGE_CLASS[form]}>
+    <Badge variant="outline" className={`text-[10px] ${FORM_BADGE_CLASS[form]}`}>
       {form}
     </Badge>
+  )
+}
+
+const TREND_CLASS: Record<'Up' | 'Down' | 'Flat', string> = {
+  Up: 'text-positive',
+  Down: 'text-negative',
+  Flat: 'text-muted-foreground',
+}
+
+const TREND_ARROW: Record<'Up' | 'Down' | 'Flat', string> = {
+  Up: '▲',
+  Down: '▼',
+  Flat: '–',
+}
+
+function TrendCell({ player }: { player: Player }) {
+  const trend = getTrendLabel(player)
+  if (!trend) return <span className="text-muted-foreground">-</span>
+
+  return (
+    <span className={`text-xs font-semibold ${TREND_CLASS[trend]}`}>
+      {TREND_ARROW[trend]} {trend}
+    </span>
+  )
+}
+
+const CONFIDENCE_BADGE_CLASS: Record<'High' | 'Medium' | 'Low', string> = {
+  High: 'rounded border-positive/30 bg-positive/10 text-positive',
+  Medium: 'rounded',
+  Low: 'rounded border-warning/30 bg-warning/10 text-warning',
+}
+
+function ConfidenceBadge({ confidence }: { confidence?: Player['projectionConfidence'] }) {
+  const value = confidence || 'Medium'
+
+  return (
+    <Badge variant="outline" className={`text-[10px] ${CONFIDENCE_BADGE_CLASS[value]}`}>
+      {value}
+    </Badge>
+  )
+}
+
+const GRADE_TONE_CLASS: Record<'positive' | 'negative' | 'warning' | 'neutral', string> = {
+  positive: 'border-positive/30 bg-positive/10 text-positive',
+  negative: 'border-negative/30 bg-negative/10 text-negative',
+  warning: 'border-warning/30 bg-warning/10 text-warning',
+  neutral: '',
+}
+
+function GradeBadge({ tier }: { tier?: number }) {
+  if (tier === undefined) return <span className="text-muted-foreground">-</span>
+
+  const grade = gradeForTier(tier)
+
+  return (
+    <Badge variant="outline" className={`rounded text-[10px] font-bold ${GRADE_TONE_CLASS[grade.tone]}`}>
+      {grade.label}
+    </Badge>
+  )
+}
+
+const FLAG_TONE_CLASS: Record<'positive' | 'negative' | 'warning', string> = {
+  positive: 'border-positive/30 bg-positive/10 text-positive',
+  negative: 'border-negative/30 bg-negative/10 text-negative',
+  warning: 'border-warning/30 bg-warning/10 text-warning',
+}
+
+function FlagsCell({ player }: { player: Player }) {
+  const flags = getPlayerFlags(player)
+  if (flags.length === 0) return <span className="text-muted-foreground">-</span>
+
+  return (
+    <div className="flex flex-wrap gap-1">
+      {flags.map((flag) => (
+        <span
+          key={flag.label}
+          className={`rounded border px-1 py-0 text-[9px] font-medium whitespace-nowrap ${FLAG_TONE_CLASS[flag.tone]}`}
+        >
+          {flag.label}
+        </span>
+      ))}
+    </div>
+  )
+}
+
+function FixtureStripCell({ strip }: { strip?: Player['fixtureStrip'] }) {
+  if (!strip || strip.length === 0) return <span className="text-muted-foreground">-</span>
+
+  return (
+    <div className="flex flex-wrap items-center gap-1">
+      {strip.map((entry) => {
+        const isBye = entry.opponent === 'Unknown'
+        const label = isBye ? 'BYE' : `${teamAbbr(entry.opponent)}(${entry.isHome ? 'H' : 'A'})`
+        const toneClass = isBye ? 'border-transparent bg-muted text-muted-foreground' : difficultyBadgeClass(entry.difficulty)
+
+        return (
+          <span
+            key={entry.round}
+            className={`rounded border px-1 py-0 text-[8px] font-medium whitespace-nowrap ${toneClass}`}
+          >
+            {label}
+          </span>
+        )
+      })}
+    </div>
   )
 }
 
@@ -78,12 +185,20 @@ function RangeBar({ low, score, high }: { low?: number; score?: number; high?: n
           <div className="absolute inset-y-0 w-0.5 -translate-x-1/2 bg-primary" style={{ left: `${toPercent(score)}%` }} />
         )}
       </div>
-      <span className="font-semibold text-primary">{score ?? '-'}</span>
+      <span className="font-semibold tabular-nums text-primary">{score ?? '-'}</span>
     </div>
   )
 }
 
-const BASE_COLUMN_COUNT = 8
+const BASE_COLUMN_COUNT = 12
+
+// Responsive column hiding, layered on top of the manual column picker (which only governs
+// EXTRA_COLUMNS) - progressively drops less-critical columns on narrower viewports instead of
+// forcing horizontal scroll. Player/Grade/Avg always show; everything else earns its way back in
+// as space allows. Header and body cells for the same column must share the identical class or
+// the table's columns misalign.
+const HIDE_BELOW_MD = 'hidden md:table-cell'
+const HIDE_BELOW_LG = 'hidden lg:table-cell'
 
 export default function ProjectionsTable({ players }: ProjectionsTableProps) {
   const [filter, setFilter] = useState<PositionFilter>('ALL')
@@ -112,22 +227,26 @@ export default function ProjectionsTable({ players }: ProjectionsTableProps) {
         <ColumnPicker visible={visibleColumns} onToggle={toggleColumn} />
       </div>
 
-      <Table>
+      <Table className="[&_td]:py-1.5 [&_th]:h-8 [&_th]:text-xs">
         <TableHeader>
           <TableRow>
             <TableHead className="w-8" />
             <TableHead>Player</TableHead>
-            <TableHead>Opponent</TableHead>
+            <TableHead>Grade</TableHead>
+            <TableHead className={HIDE_BELOW_MD}>Opponent</TableHead>
+            <TableHead className={HIDE_BELOW_LG}>Fixtures</TableHead>
             <TableHead className="text-right">Avg</TableHead>
-            <TableHead>Range</TableHead>
-            <TableHead>Form</TableHead>
-            <TableHead className="text-right">Consistency</TableHead>
-            <TableHead className="text-right">Confidence</TableHead>
+            <TableHead className={HIDE_BELOW_MD}>Range</TableHead>
+            <TableHead className={HIDE_BELOW_LG}>Form</TableHead>
+            <TableHead className={HIDE_BELOW_LG}>Trend</TableHead>
+            <TableHead className={`text-right ${HIDE_BELOW_LG}`}>Consistency</TableHead>
+            <TableHead className={`text-right ${HIDE_BELOW_MD}`}>Confidence</TableHead>
             {EXTRA_COLUMNS.filter((column) => visibleColumns.includes(column.key)).map((column) => (
-              <TableHead key={column.key} className={column.align === 'right' ? 'text-right' : undefined}>
+              <TableHead key={column.key} className={`${HIDE_BELOW_LG} ${column.align === 'right' ? 'text-right' : ''}`}>
                 {column.label}
               </TableHead>
             ))}
+            <TableHead className={HIDE_BELOW_LG}>Flags</TableHead>
           </TableRow>
         </TableHeader>
         <TableBody>
@@ -161,13 +280,16 @@ export default function ProjectionsTable({ players }: ProjectionsTableProps) {
                       >
                         {player.name}
                       </Link>
-                      <Badge variant="outline" className="h-5 px-1.5 text-[10px]">
+                      <Badge variant="outline" className="h-5 rounded px-1.5 text-[10px]">
                         {player.position}{player.position2 ? `/${player.position2}` : ''}
                       </Badge>
                     </div>
                     <div className="text-xs text-muted-foreground">{player.team}</div>
                   </TableCell>
                   <TableCell>
+                    <GradeBadge tier={tier} />
+                  </TableCell>
+                  <TableCell className={HIDE_BELOW_MD}>
                     {player.fixture?.opponent && player.fixture.opponent !== 'Unknown' ? (
                       <Badge variant="outline" className={difficultyBadgeClass(player.fixture.difficulty)}>
                         {player.fixture.opponent}
@@ -176,24 +298,33 @@ export default function ProjectionsTable({ players }: ProjectionsTableProps) {
                       <span className="text-muted-foreground">Bye</span>
                     )}
                   </TableCell>
-                  <TableCell className="text-right">{player.avgScore}</TableCell>
-                  <TableCell>
+                  <TableCell className={HIDE_BELOW_LG}>
+                    <FixtureStripCell strip={player.fixtureStrip} />
+                  </TableCell>
+                  <TableCell className="text-right tabular-nums">{player.avgScore}</TableCell>
+                  <TableCell className={HIDE_BELOW_MD}>
                     <RangeBar low={player.projectionLow} score={player.projectedScore} high={player.projectionHigh} />
                   </TableCell>
-                  <TableCell>
+                  <TableCell className={HIDE_BELOW_LG}>
                     <FormBadge factors={player.projectionFactors} />
                   </TableCell>
-                  <TableCell className="text-right">
+                  <TableCell className={HIDE_BELOW_LG}>
+                    <TrendCell player={player} />
+                  </TableCell>
+                  <TableCell className={`text-right ${HIDE_BELOW_LG}`}>
                     <ConsistencyCell factors={player.projectionFactors} />
                   </TableCell>
-                  <TableCell className="text-right">
-                    <Badge variant="outline">{player.projectionConfidence || 'Medium'}</Badge>
+                  <TableCell className={`text-right ${HIDE_BELOW_MD}`}>
+                    <ConfidenceBadge confidence={player.projectionConfidence} />
                   </TableCell>
                   {EXTRA_COLUMNS.filter((column) => visibleColumns.includes(column.key)).map((column) => (
-                    <TableCell key={column.key} className={column.align === 'right' ? 'text-right' : undefined}>
+                    <TableCell key={column.key} className={`${HIDE_BELOW_LG} ${column.align === 'right' ? 'text-right tabular-nums' : ''}`}>
                       {extraColumnValue(player, column.key)}
                     </TableCell>
                   ))}
+                  <TableCell className={HIDE_BELOW_LG}>
+                    <FlagsCell player={player} />
+                  </TableCell>
                 </TableRow>
 
                 {expanded && (

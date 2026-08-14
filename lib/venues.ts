@@ -60,8 +60,10 @@ function round1(value: number): number {
   return Math.round(value * 10) / 10
 }
 
-function cleanText(value: string): string {
-  return value.toLowerCase().replace(/[^a-z0-9 ]/g, '').replace(/\s+/g, ' ').trim()
+/** Same null-safety fix as lib/afl.ts's cleanTeamName - Squiggle can return a null venue for
+ * not-yet-scheduled rounds. */
+function cleanText(value: string | null | undefined): string {
+  return (value || '').toLowerCase().replace(/[^a-z0-9 ]/g, '').replace(/\s+/g, ' ').trim()
 }
 
 export function normaliseVenueName(venue: string): string {

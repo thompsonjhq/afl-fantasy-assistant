@@ -1,4 +1,4 @@
-import { FixtureContext, SquiggleGame } from '@/types'
+import { FixtureContext, FixtureStripEntry, SquiggleGame } from '@/types'
 
 const TEAM_ALIASES: Record<string, string[]> = {
   Adelaide: ['Adelaide', 'Adelaide Crows'],
@@ -42,8 +42,12 @@ const TEAM_ABBREVIATIONS: Record<string, string> = {
   'Western Bulldogs': 'WBD',
 }
 
-function cleanTeamName(team: string): string {
-  return team.toLowerCase().replace(/[^a-z ]/g, '').replace(/\s+/g, ' ').trim()
+/** Squiggle can return placeholder fixture rows with a null hteam/ateam for rounds that aren't
+ * fully scheduled yet (finals, byes) - this only started getting exercised once the Fixtures
+ * strip began fetching rounds beyond "the current one", which is always fully populated. Treat
+ * a null/missing team name as never matching a real one, rather than crashing. */
+function cleanTeamName(team: string | null | undefined): string {
+  return (team || '').toLowerCase().replace(/[^a-z ]/g, '').replace(/\s+/g, ' ').trim()
 }
 
 function normaliseTeamName(team: string): string {
@@ -169,6 +173,35 @@ export function getOpponentDifficulty(team: string, fixtures: SquiggleGame[]) {
     difficulty,
     confidence: Number(fixture.hconfidence || 0),
   }
+}
+
+/** Next `count` rounds' opponents for every distinct team in `teams`, for the Projections
+ * table's Fixtures strip. Fetches each round's fixture list once (cached by getSquiggleFixtures)
+ * regardless of squad size, then derives every team's context from that shared list in memory -
+ * cheap even for a full free-agent pool. Rounds past the end of the fixture list (or a real bye)
+ * both fall out as opponent 'Unknown' via getFixtureContext's existing "no fixture found" path -
+ * the UI renders that as a bye chip either way. */
+export async function getFixtureStripsForTeams(
+  teams: string[],
+  fromRound: number,
+  season: number,
+  count = 5
+): Promise<Record<string, FixtureStripEntry[]>> {
+  const uniqueTeams = [...new Set(teams)]
+  const rounds = Array.from({ length: count }, (_, i) => fromRound + i)
+
+  const fixturesByRound = await Promise.all(rounds.map((round) => getSquiggleFixtures(round, season)))
+
+  const result: Record<string, FixtureStripEntry[]> = {}
+
+  for (const team of uniqueTeams) {
+    result[team] = rounds.map((round, index) => {
+      const context = getFixtureContext(team, fixturesByRound[index])
+      return { round, opponent: context.opponent, isHome: context.isHome, difficulty: context.difficulty }
+    })
+  }
+
+  return result
 }
 
 export function getFixtureContext(team: string, fixtures: SquiggleGame[]): FixtureContext {

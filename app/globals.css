@@ -32,6 +32,9 @@
   --color-accent: var(--accent);
   --color-muted-foreground: var(--muted-foreground);
   --color-muted: var(--muted);
+  --color-positive: var(--positive);
+  --color-negative: var(--negative);
+  --color-warning: var(--warning);
   --color-secondary-foreground: var(--secondary-foreground);
   --color-secondary: var(--secondary);
   --color-primary-foreground: var(--primary-foreground);
@@ -81,6 +84,9 @@
   --chart-3: #64748b;
   --chart-4: #f59e0b;
   --chart-5: #dc2626;
+  --positive: #10b981;
+  --negative: #ef4444;
+  --warning: #f59e0b;
   --radius: 0.625rem;
   /* Sidebar tokens seeded from AFL Fantasy's real brand colours (fantasy.afl.com.au) */
   --sidebar: #232d42;
@@ -94,24 +100,30 @@
 }
 
 .dark {
-  --background: oklch(0.145 0 0);
-  --foreground: oklch(0.985 0 0);
-  --card: oklch(0.205 0 0);
-  --card-foreground: oklch(0.985 0 0);
-  --popover: oklch(0.205 0 0);
-  --popover-foreground: oklch(0.985 0 0);
+  /* Surface tokens retinted to match Smart Draft Board's dark palette (verified via computed
+     CSS custom properties on the live site, not guessed) - a blue-tinted near-black rather than
+     flat greyscale. Primary/secondary/accent intentionally left alone this step. */
+  --background: hsl(240 18% 9%);
+  --foreground: hsl(260 14% 90%);
+  --card: hsl(240 11% 12%);
+  --card-foreground: hsl(260 14% 90%);
+  --popover: hsl(240 11% 12%);
+  --popover-foreground: hsl(260 14% 90%);
   --primary: oklch(0.922 0 0);
   --primary-foreground: oklch(0.205 0 0);
   --secondary: oklch(0.269 0 0);
   --secondary-foreground: oklch(0.985 0 0);
-  --muted: oklch(0.269 0 0);
-  --muted-foreground: oklch(0.708 0 0);
+  --muted: hsl(240 8% 17%);
+  --muted-foreground: hsl(240 5% 80%);
   --accent: oklch(0.269 0 0);
   --accent-foreground: oklch(0.985 0 0);
   --destructive: oklch(0.704 0.191 22.216);
-  --border: oklch(1 0 0 / 10%);
-  --input: oklch(1 0 0 / 15%);
+  --border: hsl(240 6% 22%);
+  --input: hsl(240 6% 22% / 60%);
   --ring: oklch(0.556 0 0);
+  --positive: #10b981;
+  --negative: #ef4444;
+  --warning: #f59e0b;
   --chart-1: oklch(0.87 0 0);
   --chart-2: oklch(0.556 0 0);
   --chart-3: oklch(0.439 0 0);

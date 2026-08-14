@@ -1,8 +1,9 @@
 import type { Player } from '@/types'
 
-export type ExtraColumnKey = 'l5' | 'max' | 'total' | 'own' | 'games' | 'var'
+export type ExtraColumnKey = 'l3' | 'l5' | 'max' | 'total' | 'own' | 'games' | 'var'
 
 export const EXTRA_COLUMNS: Array<{ key: ExtraColumnKey; label: string; align: 'left' | 'right' }> = [
+  { key: 'l3', label: 'L3', align: 'right' },
   { key: 'l5', label: 'L5', align: 'right' },
   { key: 'max', label: 'Max', align: 'right' },
   { key: 'total', label: 'Total', align: 'right' },
@@ -11,7 +12,7 @@ export const EXTRA_COLUMNS: Array<{ key: ExtraColumnKey; label: string; align: '
   { key: 'var', label: 'Var', align: 'right' },
 ]
 
-export const DEFAULT_VISIBLE_COLUMNS: ExtraColumnKey[] = ['l5', 'own']
+export const DEFAULT_VISIBLE_COLUMNS: ExtraColumnKey[] = ['l3', 'l5', 'own']
 
 /** Standard-deviation of a player's real scores, rounded - same shape as Smart Draft Board's
  * VAR column. Computed client-side from data already on the Player object, no backend needed. */
@@ -27,6 +28,8 @@ export function computeVariance(scores: number[] | undefined): number | null {
 
 export function extraColumnValue(player: Player, key: ExtraColumnKey): string | number {
   switch (key) {
+    case 'l3':
+      return player.last3Avg ?? '-'
     case 'l5':
       return player.last5Avg ?? '-'
     case 'max':
